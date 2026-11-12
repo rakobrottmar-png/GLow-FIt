@@ -1,0 +1,20 @@
+{
+  "name": "glow-up",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Glow Up - Training, Ernaehrung und Schritte in einer App",
+  "scripts": {
+    "start": "npx http-server www -p 4173 -c-1",
+    "sync": "npx cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
+    "@capgo/capacitor-pedometer": "^8.0.55"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^4.0.0",
+    "@capacitor/cli": "^8.6.0",
+    "http-server": "^14.1.1"
+  }
+}

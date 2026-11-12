@@ -1,0 +1,7 @@
+{
+  "appId": "app.glowup.fitness",
+  "appName": "Glow Up",
+  "webDir": "www",
+  "backgroundColor": "#000000",
+  "ios": { "contentInset": "never", "backgroundColor": "#000000", "scrollEnabled": false }
+}
