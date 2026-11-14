@@ -8,16 +8,47 @@ Fitness-App fürs iPhone im Stil von Apple Fitness: Training mit Timer und animi
 - **Training:** Tag A (Mo/Fr), Tag B (Mi), zwei Dehnroutinen. Player mit Satz-Zähler, Pausen-Timer, Tönen und animierter Figur für jede Übung.
 - **Ernährung:** Mahlzeiten eintragen (Liste, von Hand, per Foto oder Text mit KI), Kalorien, Eiweiß, Wasser.
 - **Schritte:** liest den Schrittzähler des iPhones (Core Motion), 7-Tage-Verlauf.
-- **Coach:** Chat mit Werkzeugen. Kann Pläne, Übungen, Wochenplan, Ziele und Mahlzeiten anlegen und ändern.
+- **Coach:** Chat mit Werkzeugen, auch mit Bildern. Kann Pläne, Übungen, Wochenplan, Ziele und Mahlzeiten anlegen und ändern.
+- **Spotify, Kalender, Widgets:** Musik im Training steuern, Trainingstermine im iPhone-/Google-Kalender, Homescreen-Widgets.
 
 Alles außer der KI läuft offline. Die Daten bleiben auf dem Gerät.
 
 ## KI einrichten
 
-1. Auf [openrouter.ai](https://openrouter.ai) einen Key anlegen und Guthaben aufladen.
-2. In der App: Start → Zahnrad → „OpenRouter-Key“ eintragen.
+Start → Zahnrad → **KI**: Anbieter wählen, Key eintragen, Modell wählen („Laden“ holt die Liste, wo der Anbieter eine hat).
 
-Der Key wird nur auf dem Gerät gespeichert und nur an OpenRouter geschickt.
+| Anbieter | Key von | Beispiel-Modell |
+|---|---|---|
+| Runware | runware.ai → API Keys | `openai:gpt@5.4-mini` |
+| OpenAI | platform.openai.com → API keys | `gpt-5-mini` |
+| OpenRouter | openrouter.ai → Keys | `openai/gpt-5-mini` |
+| Google Gemini | aistudio.google.com → Get API key | `gemini-2.5-flash` |
+
+Alle vier sprechen das OpenAI-Chat-Format. Jeder Key wird nur auf dem Gerät gespeichert und nur an seinen Anbieter geschickt. Für Kalorien-Scan und Bilder im Coach muss das Modell Bilder verstehen.
+
+## Schnittstellen für andere Apps
+
+Glow Up ist so gebaut, dass andere Apps und iOS-Kurzbefehle Daten eintragen und auslesen können.
+
+**Links (URL-Schema `glowup://`)**, z. B. aus einer anderen App oder einem Kurzbefehl „URL öffnen“:
+
+| Link | Wirkung |
+|---|---|
+| `glowup://start/tag-a` | Training mit dieser Plan-ID starten |
+| `glowup://tab/essen` | Tab öffnen (`start`, `training`, `essen`, `schritte`, `coach`) |
+| `glowup://log/water?ml=250` | Wasser eintragen |
+| `glowup://log/meal?name=Banane&kcal=105&p=1&c=27&f=0&slot=Snack` | Mahlzeit eintragen |
+| `glowup://log/weight?kg=72.5` | Gewicht eintragen |
+| `glowup://log/steps?n=3000` | Schritte für heute ergänzen |
+| `glowup://coach?q=Text` | Frage an den Coach |
+
+**Datenaustausch:** Einstellungen → Daten → Exportieren kopiert alles als JSON in die Zwischenablage, Importieren liest es wieder ein. Format:
+
+```json
+{ "format": "glowup.v1", "exportedAt": "2026-11-14T12:00:00.000Z", "data": { "plans": [], "history": [], "meals": {}, "water": {}, "steps": {}, "weights": [], "goals": {}, "profile": {} } }
+```
+
+Keys, Spotify-Login und Bilder sind im Export nicht enthalten.
 
 ## IPA bekommen
 

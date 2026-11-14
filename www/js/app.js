@@ -461,15 +461,16 @@
     <div class="head"><div><div class="eyebrow">KI · ${esc(AI.prov().name)} · ${esc(AI.model())}</div><h1>Coach</h1></div>${chat.length ? '<button class="btn sm ghost" data-a="clearchat">Leeren</button>' : ''}</div>
     ${hasKey ? '' : `<div class="card"><h3>${esc(AI.prov().name)}-Key fehlt</h3><div class="muted small" style="margin:6px 0 12px">Der Coach und der Kalorien-Scanner brauchen deinen eigenen ${esc(AI.prov().name)}-API-Key. Er bleibt nur auf diesem Gerät gespeichert.</div><button class="btn" data-a="settings">Key eintragen</button></div>`}
     ${chat.length ? '' : `<div class="card" style="margin-top:12px"><h3>Ich kann Dinge in der App für dich bauen</h3><div class="muted small" style="margin-top:6px">Zum Beispiel neue Trainingspläne und Dehnroutinen anlegen, Pläne schwerer machen, deinen Wochenplan und deine Ziele ändern oder Mahlzeiten eintragen. Sag einfach, was du willst.</div></div>`}
-    <div class="chat" style="margin-top:12px">${chat.map(m => `<div class="msg ${m.role}${m.err ? ' err' : ''}">${m.role === 'tool' ? Ic('spark') : ''}${m.err ? Ic('warn') + ' ' : ''}${esc(m.text)}</div>`).join('')}${ui.chatBusy ? '<div class="msg assistant"><span class="dots"><i></i><i></i><i></i></span></div>' : ''}</div>
+    <div class="chat" style="margin-top:12px">${chat.map(m => `<div class="msg ${m.role}${m.err ? ' err' : ''}">${m.role === 'tool' ? Ic('spark') : ''}${m.err ? Ic('warn') + ' ' : ''}${m.image ? `<img class="chatimg" src="${m.image}" alt="Bild">` : ''}${esc(m.text)}</div>`).join('')}${ui.chatBusy ? '<div class="msg assistant"><span class="dots"><i></i><i></i><i></i></span></div>' : ''}</div>
     <div style="height:150px"></div>
     <div class="composer"><div style="flex:1;min-width:0">${chat.length ? '' : `<div class="chips">${chips.map(c => `<button data-a="askcoach" data-q="${esc(c)}">${esc(c)}</button>`).join('')}</div>`}
-      <div class="row" style="gap:8px"><textarea id="c-text" placeholder="Nachricht an den Coach" rows="1"></textarea><button class="send" data-a="send" aria-label="Senden">${Ic('send')}</button></div></div></div>`;
+      ${ui.coachImg ? `<div class="attach"><img src="${ui.coachImg}" alt="Angehängtes Bild"><button class="x" data-a="coachimgdel" aria-label="Bild entfernen">${Ic('close')}</button></div>` : ''}
+      <div class="row" style="gap:8px"><button class="iconbtn" data-a="coachimg" aria-label="Bild anhängen">${Ic('camera')}</button><textarea id="c-text" placeholder="Nachricht an den Coach" rows="1"></textarea><button class="send" data-a="send" aria-label="Senden">${Ic('send')}</button></div></div></div>`;
   }
 
-  async function sendChat(text) {
-    text = (text || '').trim(); if (!text || ui.chatBusy) return;
-    d().chat.push({ role: 'user', text }); ui.chatBusy = true; Store.save();
+  async function sendChat(text, image) {
+    text = (text || '').trim(); if ((!text && !image) || ui.chatBusy) return;
+    d().chat.push(image ? { role: 'user', text, image } : { role: 'user', text }); ui.chatBusy = true; trimChatImages(); Store.save();
     if (ui.tab !== 'coach') { ui.tab = 'coach'; } render(); scrollEnd();
     try {
       const tools = [];
@@ -480,17 +481,28 @@
       if (tools.length) d().chat.push({ role: 'tool', text: [...new Set(tools)].join(' · ') });
       d().chat.push({ role: 'assistant', text: answer });
     } catch (e) { d().chat.push({ role: 'assistant', text: e.message, err: true }); }
-    ui.chatBusy = false; d().chat = d().chat.slice(-60); Store.save();
+    ui.chatBusy = false; d().chat = d().chat.slice(-60); trimChatImages(); Store.save();
     if (ui.tab === 'coach') { render(); scrollEnd(); } else toast('Der Coach hat geantwortet');
   }
   const scrollEnd = () => requestAnimationFrame(() => view.scrollTop = view.scrollHeight);
+  // Bilder brauchen viel Speicher: nur die letzten 4 im Verlauf behalten
+  function trimChatImages() {
+    let n = 0;
+    for (let i = d().chat.length - 1; i >= 0; i--) if (d().chat[i].image && ++n > 4) { delete d().chat[i].image; d().chat[i].text = (d().chat[i].text || '') + ' [Bild]'; }
+  }
 
   // ---------- Einstellungen ----------
   function settingsSheet() {
     const s = d(), g = s.goals;
     const opt = (v, cur) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>`;
-    const P = AI.prov(), isOA = s.ai.provider === 'openai';
-    const models = (isOA && s.ai.models && s.ai.models.length ? s.ai.models : P.models).slice();
+    const P = AI.prov(), lists = s.ai.lists || {};
+    const models = ((lists[s.ai.provider] || []).length ? lists[s.ai.provider] : P.models).slice();
+    const HINT = {
+      runware: 'Den Key bekommst du auf runware.ai im Dashboard unter „API Keys“. Modelle heißen z. B. openai:gpt@5.4-mini oder google:gemini@3.1-pro.',
+      openai: 'Den Key bekommst du auf platform.openai.com unter „API keys“. „Laden“ holt die Modelle deines Kontos, ein „mini“-Modell ist am günstigsten.',
+      openrouter: 'Den Key bekommst du auf openrouter.ai unter „Keys“. „Laden“ zeigt Modelle, die Bilder und Werkzeuge können.',
+      gemini: 'Den Key bekommst du kostenlos im Google AI Studio (aistudio.google.com) unter „Get API key“. „Flash“-Modelle sind schnell und günstig.'
+    };
     openSheet(`
       <h2>Einstellungen</h2>
       <div class="fields"><div class="field"><label for="s-name">Dein Name</label><input id="s-name" value="${esc(s.profile.name)}" autocomplete="off"></div>
@@ -527,15 +539,16 @@
 
       <h2>KI</h2>
       <div class="field"><label for="s-prov">Anbieter</label><select id="s-prov">${Object.keys(AI.PROVIDERS).map(k => opt(k, s.ai.provider) + esc(AI.PROVIDERS[k].name) + '</option>').join('')}</select></div>
-      <div class="field"><label for="s-key">${esc(P.name)}-API-Key</label><input id="s-key" type="password" value="${esc(s.ai.keys[s.ai.provider] || '')}" placeholder="${isOA ? 'sk-…' : 'Runware API Key'}" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
-      <div class="field"><label for="s-model">Modell</label><div class="row" style="gap:8px"><input id="s-model" list="s-models" style="flex:1" value="${esc(AI.model())}" autocomplete="off" autocapitalize="off" spellcheck="false">${isOA ? '<button class="btn sm ghost" data-a="loadmodels">Laden</button>' : ''}</div>
+      <div class="field"><label for="s-key">${esc(P.name)}-API-Key</label><input id="s-key" type="password" value="${esc(s.ai.keys[s.ai.provider] || '')}" placeholder="${esc(P.keyHint || 'API-Key')}" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="field"><label for="s-model">Modell</label><div class="row" style="gap:8px"><input id="s-model" list="s-models" style="flex:1" value="${esc(AI.model())}" autocomplete="off" autocapitalize="off" spellcheck="false">${P.modelsUrl ? '<button class="btn sm ghost" data-a="loadmodels">Laden</button>' : ''}</div>
         <datalist id="s-models">${models.map(m => `<option value="${esc(m)}">`).join('')}</datalist></div>
-      <div class="note">${isOA
-        ? 'Den Key bekommst du auf platform.openai.com unter „API keys“. „Laden“ holt die Modelle deines Kontos, ein „mini“-Modell ist am günstigsten.'
-        : 'Den Key bekommst du auf runware.ai im Dashboard unter „API Keys“. Modelle haben Namen wie openai:gpt@5.4-mini oder google:gemini@3.1-pro. Für den Kalorien-Scanner muss das Modell Bilder verstehen.'}
+      <div class="note">${HINT[s.ai.provider] || ''} Für den Kalorien-Scanner und Bilder im Coach muss das Modell Bilder verstehen.
         Der Key wird nur auf diesem Gerät gespeichert und nur an ${esc(P.name)} geschickt. Jede KI-Anfrage kostet dort etwas Guthaben.</div>
 
       <button class="btn" style="margin-top:18px" data-a="savesettings">Speichern</button>
+      <h2>Daten</h2>
+      <div class="muted small">Austausch mit anderen Apps: Export kopiert alle Daten als JSON (ohne Keys) in die Zwischenablage, Import liest sie wieder ein.</div>
+      <div class="btns" style="margin-top:10px"><button class="btn sm soft" style="flex:1" data-a="exportdata">Exportieren</button><button class="btn sm ghost" style="flex:1" data-a="importdata">Importieren</button></div>
       <button class="btn danger" style="margin-top:10px" data-a="reset">Alle Daten löschen</button>
       <div class="muted small" style="text-align:center;margin-top:14px">Glow Up 1.0 · Alle Daten bleiben auf deinem Gerät.</div>`);
   }
@@ -615,16 +628,24 @@
     },
     savesteps() { d().stepsManual[Store.day()] = int('st-n', 0, 99999, 0); Store.save(); closeSheet(); render(); },
     // Coach
-    send() { const t = $('#c-text'); const v = t.value; t.value = ''; sendChat(v); },
+    send() {
+      const t = $('#c-text'), v = t.value, img = ui.coachImg;
+      if (!v.trim() && !img) return;
+      if (!AI.hasKey()) return toast('Erst den ' + AI.prov().name + '-Key eintragen');
+      t.value = ''; ui.coachImg = null; sendChat(v, img);
+    },
+    coachimg() { const inp = $('#coachphoto'); inp.value = ''; inp.click(); },
+    coachimgdel() { ui.coachImg = null; render(); },
     askcoach(ds) { if (!AI.hasKey()) { ui.tab = 'coach'; render(); return toast('Erst den ' + AI.prov().name + '-Key eintragen'); } sendChat(ds.q); },
     async loadmodels(ds, el) {
-      const key = val('s-key'); if (!key) return toast('Erst den OpenAI-Key eintragen');
+      const key = val('s-key'), pv = d().ai.provider;
+      if (!key && pv !== 'openrouter') return toast('Erst den ' + AI.prov().name + '-Key eintragen');
       el.disabled = true; el.textContent = 'Lädt …';
       try {
-        const ids = await AI.listModels(key);
+        const ids = await AI.listModels(pv, key);
         if (!ids.length) throw new Error('Keine passenden Modelle gefunden.');
         const inp = $('#s-model'), cur = inp.value;
-        d().ai.models = ids;
+        (d().ai.lists = d().ai.lists || {})[pv] = ids.slice(0, 200);
         $('#s-models').innerHTML = ids.map(m => `<option value="${esc(m)}">`).join('');
         inp.value = ids.includes(cur) ? cur : AI.pickModel(ids);
         toast(ids.length + ' Modelle geladen');
@@ -672,6 +693,22 @@
     },
     async calsync() { try { const n = await Calendar.sync(); toast(n + ' Trainingstage eingetragen'); settingsSheet(); } catch (e) { toast(e.message); } },
     async calremove() { await Calendar.removeAll(); d().calendar.id = ''; d().calendar.title = ''; Store.save(); settingsSheet(); toast('Termine entfernt'); },
+    async exportdata() {
+      const json = Store.exportJson();
+      try { await navigator.clipboard.writeText(json); toast('Daten in die Zwischenablage kopiert'); }
+      catch (e) {
+        openSheet(`<h2>Daten exportieren</h2><div class="muted small">Alles markieren und kopieren.</div><div class="field"><textarea id="ex-json" rows="12" readonly>${esc(json)}</textarea></div>`);
+      }
+    },
+    importdata() {
+      openSheet(`<h2>Daten importieren</h2><div class="muted small">JSON aus einem Glow-Up-Export einfügen. Deine Keys bleiben erhalten, alles andere wird ersetzt.</div>
+        <div class="field"><textarea id="im-json" rows="10" placeholder='{"format":"glowup.v1", …}'></textarea></div>
+        <button class="btn" style="margin-top:14px" data-a="importgo">Importieren</button>`);
+    },
+    importgo() {
+      try { Store.importJson(val('im-json')); closeSheet(); render(); toast('Daten importiert'); }
+      catch (e) { toast(e.message); }
+    },
     reset() {
       if (!ui.resetArmed) { ui.resetArmed = true; return toast('Nochmal tippen: Alles wird gelöscht'); }
       ui.resetArmed = false; Store.reset(); closeSheet(); ui.tab = 'start'; render(); toast('Alle Daten gelöscht');
@@ -687,6 +724,11 @@
     if (e.target.id === 'c-text' && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); A.send(); }
   });
   $('#photo').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (f) scanPhoto(f); });
+  $('#coachphoto').addEventListener('change', async e => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    try { ui.coachImg = await AI.shrink(f, 768); const txt = $('#c-text') ? $('#c-text').value : ''; render(); if ($('#c-text')) $('#c-text').value = txt; scrollEnd(); }
+    catch (err) { toast(err.message); }
+  });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { syncSteps(false); if (!P && sheet.hidden) render(); } });
 
   // Spotify-Leisten aktualisieren, ohne die ganze Seite neu zu zeichnen
@@ -700,17 +742,46 @@
       catch (e) { toast(e.message); }
       return;
     }
-    const m = url.match(/^glowup:\/\/(start|tab)\/([\w-]+)/);
-    if (!m) return;
-    if (m[1] === 'start' && Store.plan(m[2]) && !P) startPlan(m[2]);
-    if (m[1] === 'tab' && views[m[2]]) { closeSheet(); ui.tab = m[2]; render(); }
+    handleLink(url);
   });
+
+  // Schnittstelle fuer andere Apps und iOS-Kurzbefehle (siehe README "Schnittstellen"):
+  //   glowup://start/<plan-id>              Training starten
+  //   glowup://tab/<start|training|essen|schritte|coach>
+  //   glowup://log/water?ml=250
+  //   glowup://log/meal?name=Banane&kcal=105&p=1&c=27&f=0&slot=Snack
+  //   glowup://log/weight?kg=72.5
+  //   glowup://log/steps?n=3000            (zusaetzliche Schritte fuer heute)
+  //   glowup://coach?q=Text                Frage an den Coach
+  function handleLink(url) {
+    const m = url.match(/^glowup:\/\/([\w-]+)(?:\/([\w-]+))?\/?(?:\?(.*))?$/);
+    if (!m) return false;
+    const [, kind, arg, query] = m, q = new URLSearchParams(query || '');
+    const num = (k, lo, hi) => { const v = parseFloat(String(q.get(k) || '').replace(',', '.')); return isNaN(v) ? NaN : Math.min(hi, Math.max(lo, v)); };
+    const t = Store.day();
+    if (kind === 'start' && Store.plan(arg) && !P) { startPlan(arg); return true; }
+    if (kind === 'tab' && views[arg]) { closeSheet(); ui.tab = arg; render(); return true; }
+    if (kind === 'coach' && q.get('q')) { ui.tab = 'coach'; render(); if (AI.hasKey()) sendChat(q.get('q').slice(0, 2000)); return true; }
+    if (kind !== 'log') return false;
+    if (arg === 'water') { const ml = num('ml', -5000, 5000); if (isNaN(ml)) return false; d().water[t] = Math.max(0, (d().water[t] || 0) + Math.round(ml)); }
+    else if (arg === 'meal') {
+      const kcal = num('kcal', 0, 9999); if (!q.get('name') || isNaN(kcal)) return false;
+      (d().meals[t] = d().meals[t] || []).push({ id: Store.uid(), name: q.get('name').slice(0, 60), kcal: Math.round(kcal), p: Math.round(num('p', 0, 999) || 0), c: Math.round(num('c', 0, 999) || 0), f: Math.round(num('f', 0, 999) || 0), slot: SLOTS.includes(q.get('slot')) ? q.get('slot') : slotNow() });
+    }
+    else if (arg === 'weight') { const kg = num('kg', 25, 300); if (isNaN(kg)) return false; d().weights.push({ date: t, kg: Math.round(kg * 10) / 10 }); d().profile.weight = Math.round(kg * 10) / 10; }
+    else if (arg === 'steps') { const n = num('n', 0, 99999); if (isNaN(n)) return false; d().stepsManual[t] = (d().stepsManual[t] || 0) + Math.round(n); }
+    else return false;
+    Store.save(); render(); toast('Eingetragen'); return true;
+  }
 
   // Hintergrund: Timer-Alarm als Mitteilung planen. Vordergrund: wieder abbrechen, Daten auffrischen.
   Native.listen('App', 'appStateChange', ({ isActive }) => {
     if (isActive) { cancelAlarm(); Widget.update(); if (P) Spotify.refresh(); }
     else scheduleAlarm();
   });
+
+  // Fuer Tests und kuenftige Erweiterungen im selben WebView
+  window.GlowUp = { link: handleLink, exportJson: Store.exportJson, importJson: Store.importJson, version: 1 };
 
   render();
   syncSteps(false);

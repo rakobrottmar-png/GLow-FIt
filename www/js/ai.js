@@ -1,11 +1,15 @@
-// KI ueber Runware oder OpenAI (beide sprechen das OpenAI-Chat-Format):
+// KI ueber Runware, OpenAI, OpenRouter oder Google Gemini (alle sprechen das OpenAI-Chat-Format):
 // Kalorien-Scanner und der Coach, der Dinge in der App anlegen kann.
 const AI = (() => {
   const PROVIDERS = {
     runware: { name: 'Runware', url: 'https://api.runware.ai/v1/chat/completions', site: 'runware.ai',
       models: ['openai:gpt@5.4-mini', 'openai:gpt@5.5', 'google:gemini@3.1-pro', 'anthropic:claude@sonnet-5.5'] },
     openai: { name: 'OpenAI', url: 'https://api.openai.com/v1/chat/completions', site: 'platform.openai.com',
-      models: ['gpt-5-mini', 'gpt-5', 'gpt-4.1-mini'] }
+      models: ['gpt-5-mini', 'gpt-5', 'gpt-4.1-mini'], modelsUrl: 'https://api.openai.com/v1/models', keyHint: 'sk-…' },
+    openrouter: { name: 'OpenRouter', url: 'https://openrouter.ai/api/v1/chat/completions', site: 'openrouter.ai', tokens: 'max_tokens',
+      models: ['openai/gpt-5-mini', 'google/gemini-2.5-flash', 'anthropic/claude-sonnet-5.5'], modelsUrl: 'https://openrouter.ai/api/v1/models', keyHint: 'sk-or-…' },
+    gemini: { name: 'Google Gemini', url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', site: 'aistudio.google.com', tokens: 'max_tokens',
+      models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite'], modelsUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/models', keyHint: 'AIza…' }
   };
   const ai = () => Store.d.ai;
   const prov = () => PROVIDERS[ai().provider] || PROVIDERS.runware;
@@ -14,6 +18,18 @@ const AI = (() => {
   const hasKey = () => !!key();
 
   // Auf dem iPhone ueber die native HTTP-Schnittstelle (keine CORS-Probleme), im Browser per fetch
+  async function get(url, auth) {
+    const headers = auth ? { Authorization: 'Bearer ' + auth } : {};
+    if (Native.isNative()) {
+      const r = await Native.call('CapacitorHttp', 'request', { url, method: 'GET', headers });
+      let json = r.data;
+      if (typeof json === 'string') { try { json = JSON.parse(json); } catch (e) { json = null; } }
+      return { ok: r.status >= 200 && r.status < 300, status: r.status, json };
+    }
+    const res = await fetch(url, { headers });
+    return { ok: res.ok, status: res.status, json: await res.json().catch(() => null) };
+  }
+
   async function post(url, auth, body) {
     if (Native.isNative()) {
       const r = await Native.call('CapacitorHttp', 'request', { url, method: 'POST', headers: { Authorization: 'Bearer ' + auth, 'Content-Type': 'application/json' }, data: body });
@@ -30,6 +46,8 @@ const AI = (() => {
     if (!hasKey()) throw new Error('Kein ' + P.name + '-Key eingetragen. Öffne die Einstellungen (Zahnrad auf der Startseite).');
     if (!navigator.onLine) throw new Error('Keine Internetverbindung. Die KI braucht Internet, alles andere geht offline.');
     const req = Object.assign({ model: m }, body);
+    // Manche Anbieter kennen nur max_tokens
+    if (P.tokens === 'max_tokens' && req.max_completion_tokens) { req.max_tokens = req.max_completion_tokens; delete req.max_completion_tokens; }
     // OpenAI-Denkmodelle lehnen Werkzeuge bei Runware sonst ab
     if (ai().provider === 'runware' && /^openai:/.test(m) && body.tools) req.reasoning_effort = 'none';
     let res;
@@ -213,7 +231,14 @@ Nutze nur diese IDs. Fehlt eine Übung, lege sie zuerst mit create_exercise an u
 
   // Schickt den Verlauf an die KI, fuehrt Werkzeug-Aufrufe aus und gibt die Antwort zurueck.
   async function coach(history, onTool) {
-    const messages = [{ role: 'system', content: systemPrompt() }].concat(history.slice(-16).map(m => ({ role: m.role, content: m.text })));
+    // Bilder nur bei den letzten Nachrichten mitschicken (spart Kosten)
+    const recent = history.slice(-16), lastImg = recent.map(m => !!m.image).lastIndexOf(true);
+    const messages = [{ role: 'system', content: systemPrompt() }].concat(recent.map((m, i) => {
+      if (m.role === 'user' && m.image && i >= lastImg - 2) {
+        return { role: 'user', content: [{ type: 'text', text: m.text || 'Was siehst du auf dem Bild?' }, { type: 'image_url', image_url: { url: m.image } }] };
+      }
+      return { role: m.role, content: m.text || (m.image ? '[Bild]' : '') };
+    }));
     for (let i = 0; i < 6; i++) {
       const msg = await call({ max_completion_tokens: 4000, messages, tools: TOOLS });
       if (!msg.tool_calls || !msg.tool_calls.length) return (typeof msg.content === 'string' ? msg.content : '') || 'Erledigt.';
@@ -233,17 +258,24 @@ Nutze nur diese IDs. Fehlt eine Übung, lege sie zuerst mit create_exercise an u
   }
 
   // Verfuegbare Chat-Modelle des Kontos laden (fuer die Auswahl in den Einstellungen)
-  async function listModels(key) {
-    const res = await fetch('https://api.openai.com/v1/models', { headers: { Authorization: 'Bearer ' + key } });
-    if (res.status === 401) throw new Error('Der OpenAI-Key wurde abgelehnt.');
-    if (!res.ok) throw new Error('Modelle konnten nicht geladen werden (' + res.status + ').');
-    const j = await res.json();
-    return (j.data || [])
-      .filter(m => /^(gpt|o\d)/.test(m.id) && !/(audio|realtime|image|tts|transcribe|search|codex|instruct|embedding|moderation|cyber|\d{4}-\d\d-\d\d)/.test(m.id))
-      .sort((a, b) => b.created - a.created).map(m => m.id);
+  async function listModels(provider, key) {
+    const P = PROVIDERS[provider];
+    if (!P || !P.modelsUrl) throw new Error(P ? P.name + ' bietet keine Modell-Liste an. Trag den Modellnamen von Hand ein.' : 'Unbekannter Anbieter');
+    const res = await get(P.modelsUrl, key);
+    if (res.status === 401 || res.status === 403) throw new Error('Der ' + P.name + '-Key wurde abgelehnt.');
+    if (!res.ok || !res.json) throw new Error('Modelle konnten nicht geladen werden (' + res.status + ').');
+    const skip = /(audio|realtime|image|tts|transcribe|search|codex|instruct|embedding|moderation|cyber|imagen|veo|aqa|\d{4}-\d\d-\d\d)/;
+    let list = (res.json.data || []).map(m => ({ id: String(m.id).replace(/^models\//, ''), created: m.created || 0, m }));
+    if (provider === 'openai') list = list.filter(x => /^(gpt|o\d)/.test(x.id));
+    if (provider === 'gemini') list = list.filter(x => /^gemini/.test(x.id));
+    if (provider === 'openrouter') list = list.filter(x => {
+      const mod = (x.m.architecture && x.m.architecture.input_modalities) || [];
+      return (x.m.supported_parameters || []).includes('tools') && (!mod.length || mod.includes('image'));
+    });
+    return list.filter(x => !skip.test(x.id)).sort((a, b) => b.created - a.created).map(x => x.id);
   }
   // Guenstiges, neues Modell vorschlagen: neuestes "mini", sonst das neueste
-  const pickModel = ids => ids.find(id => /mini/.test(id) && !/nano/.test(id)) || ids[0];
+  const pickModel = ids => ids.find(id => /(mini|flash)/.test(id) && !/(nano|lite)/.test(id)) || ids[0];
 
   return { PROVIDERS, prov, model, hasKey, scanMeal, shrink, coach, listModels, pickModel };
 })();

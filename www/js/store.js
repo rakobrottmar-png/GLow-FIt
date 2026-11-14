@@ -5,7 +5,7 @@ const Store = (() => {
   const fresh = () => ({
     profile: { name: '', weight: 70 },
     goals: { kcal: 2400, protein: 130, steps: 8000, water: 2500, trainMin: 30, perWeek: 3 },
-    ai: { provider: 'runware', keys: { runware: '', openai: '' }, model: { runware: 'openai:gpt@5.4-mini', openai: 'gpt-5-mini' }, models: [] },
+    ai: { provider: 'runware', keys: { runware: '', openai: '' }, model: { runware: 'openai:gpt@5.4-mini', openai: 'gpt-5-mini' }, lists: {} },
     spotify: { clientId: '' },                     // + access, refresh, expires nach dem Login
     calendar: { id: '', title: '', time: '17:00', eventIds: [] },
     plans: JSON.parse(JSON.stringify(DEFAULT_PLANS)),
@@ -88,6 +88,21 @@ const Store = (() => {
     get d() { return d; }, save, day, addDays, uid, exercise, plan, planToday, planMinutes,
     mealTotals, stepsOn, trainMinOn, doneOn, weekDates, kraftThisWeek,
     reset() { d = fresh(); save(); },
-    exportJson() { const c = JSON.parse(JSON.stringify(d)); c.ai.key = ''; return JSON.stringify(c, null, 2); }
+    // Austauschformat fuer andere Apps: { format: 'glowup.v1', exportedAt, data } ohne Keys und Logins
+    exportJson() {
+      const c = JSON.parse(JSON.stringify(d));
+      c.ai = { provider: c.ai.provider, model: c.ai.model };
+      c.spotify = {}; c.chat = (c.chat || []).map(m => { delete m.image; return m; });
+      return JSON.stringify({ format: 'glowup.v1', exportedAt: new Date().toISOString(), data: c }, null, 2);
+    },
+    importJson(text) {
+      let j; try { j = JSON.parse(text); } catch (e) { throw new Error('Das ist kein gültiges JSON.'); }
+      const src = j && j.format === 'glowup.v1' ? j.data : null;
+      if (!src || !Array.isArray(src.plans)) throw new Error('Das ist kein Glow-Up-Export (format glowup.v1).');
+      const keep = { ai: d.ai, spotify: d.spotify, calendar: d.calendar };
+      d = Object.assign(fresh(), src, keep);
+      for (const k of ['profile', 'goals']) d[k] = Object.assign(fresh()[k], src[k]);
+      save();
+    }
   };
 })();
