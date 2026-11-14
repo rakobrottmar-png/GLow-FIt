@@ -1,26 +1,48 @@
-// KI ueber die OpenAI API: Kalorien-Scanner und der Coach, der Dinge in der App anlegen kann.
+// KI ueber Runware oder OpenAI (beide sprechen das OpenAI-Chat-Format):
+// Kalorien-Scanner und der Coach, der Dinge in der App anlegen kann.
 const AI = (() => {
-  const URL = 'https://api.openai.com/v1/chat/completions';
+  const PROVIDERS = {
+    runware: { name: 'Runware', url: 'https://api.runware.ai/v1/chat/completions', site: 'runware.ai',
+      models: ['openai:gpt@5.4-mini', 'openai:gpt@5.5', 'google:gemini@3.1-pro', 'anthropic:claude@sonnet-5.5'] },
+    openai: { name: 'OpenAI', url: 'https://api.openai.com/v1/chat/completions', site: 'platform.openai.com',
+      models: ['gpt-5-mini', 'gpt-5', 'gpt-4.1-mini'] }
+  };
+  const ai = () => Store.d.ai;
+  const prov = () => PROVIDERS[ai().provider] || PROVIDERS.runware;
+  const key = () => (ai().keys || {})[ai().provider] || '';
+  const model = () => (ai().model || {})[ai().provider] || prov().models[0];
+  const hasKey = () => !!key();
+
+  // Auf dem iPhone ueber die native HTTP-Schnittstelle (keine CORS-Probleme), im Browser per fetch
+  async function post(url, auth, body) {
+    if (Native.isNative()) {
+      const r = await Native.call('CapacitorHttp', 'request', { url, method: 'POST', headers: { Authorization: 'Bearer ' + auth, 'Content-Type': 'application/json' }, data: body });
+      let json = r.data;
+      if (typeof json === 'string') { try { json = JSON.parse(json); } catch (e) { json = null; } }
+      return { ok: r.status >= 200 && r.status < 300, status: r.status, json };
+    }
+    const res = await fetch(url, { method: 'POST', headers: { Authorization: 'Bearer ' + auth, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return { ok: res.ok, status: res.status, json: await res.json().catch(() => null) };
+  }
 
   async function call(body) {
-    const { key, model } = Store.d.ai;
-    if (!key) throw new Error('Kein OpenAI-Key eingetragen. Öffne die Einstellungen (Zahnrad auf der Startseite).');
+    const P = prov(), m = model();
+    if (!hasKey()) throw new Error('Kein ' + P.name + '-Key eingetragen. Öffne die Einstellungen (Zahnrad auf der Startseite).');
     if (!navigator.onLine) throw new Error('Keine Internetverbindung. Die KI braucht Internet, alles andere geht offline.');
+    const req = Object.assign({ model: m }, body);
+    // OpenAI-Denkmodelle lehnen Werkzeuge bei Runware sonst ab
+    if (ai().provider === 'runware' && /^openai:/.test(m) && body.tools) req.reasoning_effort = 'none';
     let res;
-    try {
-      res = await fetch(URL, {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.assign({ model }, body))
-      });
-    } catch (e) { throw new Error('OpenAI ist nicht erreichbar. Prüfe deine Internetverbindung.'); }
-    const json = await res.json().catch(() => null);
-    if (!res.ok || !json || json.error) {
-      const msg = json && json.error && json.error.message;
-      if (res.status === 401) throw new Error('Der OpenAI-Key wurde abgelehnt. Prüfe ihn in den Einstellungen.');
-      if (res.status === 429) throw new Error('OpenAI: Limit erreicht oder kein Guthaben. Prüfe dein Konto auf platform.openai.com.');
-      if (res.status === 404 || /model/i.test(msg || '')) throw new Error('OpenAI: Das Modell „' + model + '“ ist nicht verfügbar. Wähle in den Einstellungen ein anderes.');
-      throw new Error(msg || ('Fehler von OpenAI (' + res.status + ').'));
+    try { res = await post(P.url, key(), req); }
+    catch (e) { throw new Error(P.name + ' ist nicht erreichbar. Prüfe deine Internetverbindung.'); }
+    const json = res.json;
+    if (!res.ok || !json || json.error || !json.choices) {
+      const err = json && (json.error || (json.errors && json.errors[0]));
+      const msg = err && (err.message || err.responseContent || (typeof err === 'string' ? err : ''));
+      if (res.status === 401 || res.status === 403) throw new Error('Der ' + P.name + '-Key wurde abgelehnt. Prüfe ihn in den Einstellungen.');
+      if (res.status === 402 || res.status === 429) throw new Error(P.name + ': Limit erreicht oder kein Guthaben. Prüfe dein Konto auf ' + P.site + '.');
+      if (res.status === 404 || /model/i.test(msg || '')) throw new Error(P.name + ': Das Modell „' + m + '“ ist nicht verfügbar. Wähle in den Einstellungen ein anderes.');
+      throw new Error(msg || ('Fehler von ' + P.name + ' (' + res.status + ').'));
     }
     return json.choices[0].message;
   }
@@ -223,5 +245,5 @@ Nutze nur diese IDs. Fehlt eine Übung, lege sie zuerst mit create_exercise an u
   // Guenstiges, neues Modell vorschlagen: neuestes "mini", sonst das neueste
   const pickModel = ids => ids.find(id => /mini/.test(id) && !/nano/.test(id)) || ids[0];
 
-  return { scanMeal, shrink, coach, listModels, pickModel };
+  return { PROVIDERS, prov, model, hasKey, scanMeal, shrink, coach, listModels, pickModel };
 })();

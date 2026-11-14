@@ -455,11 +455,11 @@
   // ---------- Coach ----------
   const TOOLNAMES = { create_plan: 'Plan angelegt', update_plan: 'Plan geändert', delete_plan: 'Plan gelöscht', create_exercise: 'Übung angelegt', set_schedule: 'Wochenplan geändert', set_goals: 'Ziele geändert', log_meal: 'Mahlzeit eingetragen', log_water: 'Wasser eingetragen', log_weight: 'Gewicht eingetragen' };
   function vCoach() {
-    const chat = d().chat, hasKey = !!d().ai.key;
+    const chat = d().chat, hasKey = AI.hasKey();
     const chips = ['Mach Tag A etwas schwerer', 'Bau mir einen 10-Minuten-Bauchplan', 'Was soll ich heute noch essen?', 'Stell mein Kalorienziel auf Muskelaufbau ein', 'Erstelle eine Dehnroutine für den Rücken'];
     return `
-    <div class="head"><div><div class="eyebrow">KI · ${esc(d().ai.model)}</div><h1>Coach</h1></div>${chat.length ? '<button class="btn sm ghost" data-a="clearchat">Leeren</button>' : ''}</div>
-    ${hasKey ? '' : `<div class="card"><h3>OpenAI-Key fehlt</h3><div class="muted small" style="margin:6px 0 12px">Der Coach und der Kalorien-Scanner brauchen deinen eigenen OpenAI-API-Key. Er bleibt nur auf diesem Gerät gespeichert.</div><button class="btn" data-a="settings">Key eintragen</button></div>`}
+    <div class="head"><div><div class="eyebrow">KI · ${esc(AI.prov().name)} · ${esc(AI.model())}</div><h1>Coach</h1></div>${chat.length ? '<button class="btn sm ghost" data-a="clearchat">Leeren</button>' : ''}</div>
+    ${hasKey ? '' : `<div class="card"><h3>${esc(AI.prov().name)}-Key fehlt</h3><div class="muted small" style="margin:6px 0 12px">Der Coach und der Kalorien-Scanner brauchen deinen eigenen ${esc(AI.prov().name)}-API-Key. Er bleibt nur auf diesem Gerät gespeichert.</div><button class="btn" data-a="settings">Key eintragen</button></div>`}
     ${chat.length ? '' : `<div class="card" style="margin-top:12px"><h3>Ich kann Dinge in der App für dich bauen</h3><div class="muted small" style="margin-top:6px">Zum Beispiel neue Trainingspläne und Dehnroutinen anlegen, Pläne schwerer machen, deinen Wochenplan und deine Ziele ändern oder Mahlzeiten eintragen. Sag einfach, was du willst.</div></div>`}
     <div class="chat" style="margin-top:12px">${chat.map(m => `<div class="msg ${m.role}${m.err ? ' err' : ''}">${m.role === 'tool' ? Ic('spark') : ''}${m.err ? Ic('warn') + ' ' : ''}${esc(m.text)}</div>`).join('')}${ui.chatBusy ? '<div class="msg assistant"><span class="dots"><i></i><i></i><i></i></span></div>' : ''}</div>
     <div style="height:150px"></div>
@@ -489,8 +489,8 @@
   function settingsSheet() {
     const s = d(), g = s.goals;
     const opt = (v, cur) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>`;
-    const models = (s.ai.models && s.ai.models.length ? s.ai.models : ['gpt-5-mini', 'gpt-5', 'gpt-4.1-mini']).slice();
-    if (!models.includes(s.ai.model)) models.unshift(s.ai.model);
+    const P = AI.prov(), isOA = s.ai.provider === 'openai';
+    const models = (isOA && s.ai.models && s.ai.models.length ? s.ai.models : P.models).slice();
     openSheet(`
       <h2>Einstellungen</h2>
       <div class="fields"><div class="field"><label for="s-name">Dein Name</label><input id="s-name" value="${esc(s.profile.name)}" autocomplete="off"></div>
@@ -525,15 +525,31 @@
       <h2>Widgets</h2>
       <div class="muted small">Halte auf dem Homescreen eine freie Stelle gedrückt → + → „Glow Up“. Es gibt Ringe, Heute, Schritte und Woche, auch für den Sperrbildschirm.</div>
 
-      <h2>KI (OpenAI)</h2>
-      <div class="field"><label for="s-key">OpenAI-API-Key</label><input id="s-key" type="password" value="${esc(s.ai.key)}" placeholder="sk-…" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
-      <div class="field"><label for="s-model">Modell</label><div class="row" style="gap:8px"><select id="s-model" style="flex:1">${models.map(m => opt(m, s.ai.model) + esc(m) + '</option>').join('')}</select><button class="btn sm ghost" data-a="loadmodels">Laden</button></div></div>
-      <div class="note">Den Key bekommst du auf platform.openai.com unter „API keys“. Er wird nur auf diesem Gerät gespeichert und nur an OpenAI geschickt. Jede KI-Anfrage kostet dort etwas Guthaben. „Laden“ holt die Modelle deines Kontos, ein „mini“-Modell ist am günstigsten.</div>
+      <h2>KI</h2>
+      <div class="field"><label for="s-prov">Anbieter</label><select id="s-prov">${Object.keys(AI.PROVIDERS).map(k => opt(k, s.ai.provider) + esc(AI.PROVIDERS[k].name) + '</option>').join('')}</select></div>
+      <div class="field"><label for="s-key">${esc(P.name)}-API-Key</label><input id="s-key" type="password" value="${esc(s.ai.keys[s.ai.provider] || '')}" placeholder="${isOA ? 'sk-…' : 'Runware API Key'}" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="field"><label for="s-model">Modell</label><div class="row" style="gap:8px"><input id="s-model" list="s-models" style="flex:1" value="${esc(AI.model())}" autocomplete="off" autocapitalize="off" spellcheck="false">${isOA ? '<button class="btn sm ghost" data-a="loadmodels">Laden</button>' : ''}</div>
+        <datalist id="s-models">${models.map(m => `<option value="${esc(m)}">`).join('')}</datalist></div>
+      <div class="note">${isOA
+        ? 'Den Key bekommst du auf platform.openai.com unter „API keys“. „Laden“ holt die Modelle deines Kontos, ein „mini“-Modell ist am günstigsten.'
+        : 'Den Key bekommst du auf runware.ai im Dashboard unter „API Keys“. Modelle haben Namen wie openai:gpt@5.4-mini oder google:gemini@3.1-pro. Für den Kalorien-Scanner muss das Modell Bilder verstehen.'}
+        Der Key wird nur auf diesem Gerät gespeichert und nur an ${esc(P.name)} geschickt. Jede KI-Anfrage kostet dort etwas Guthaben.</div>
 
       <button class="btn" style="margin-top:18px" data-a="savesettings">Speichern</button>
       <button class="btn danger" style="margin-top:10px" data-a="reset">Alle Daten löschen</button>
       <div class="muted small" style="text-align:center;margin-top:14px">Glow Up 1.0 · Alle Daten bleiben auf deinem Gerät.</div>`);
   }
+
+  // Key und Modell aus den Einstellungen fuer den gewaehlten Anbieter uebernehmen
+  function keepAi() {
+    const a = d().ai;
+    if ($('#s-key')) a.keys[a.provider] = val('s-key');
+    if ($('#s-model') && val('s-model')) a.model[a.provider] = val('s-model');
+  }
+  document.addEventListener('change', e => {
+    if (e.target.id !== 's-prov') return;
+    keepAi(); d().ai.provider = e.target.value; Store.save(); settingsSheet();
+  });
 
   // ---------- Geruest ----------
   const views = { start: vStart, training: vTraining, essen: vEssen, schritte: vSchritte, coach: vCoach };
@@ -574,8 +590,8 @@
     // Ernaehrung
     water(ds) { const t = Store.day(); d().water[t] = Math.max(0, (d().water[t] || 0) + (+ds.ml)); Store.save(); render(); },
     addmeal() { mealSheet(); },
-    scan() { if (!d().ai.key) { toast('Erst den OpenAI-Key eintragen'); return settingsSheet(); } const inp = $('#photo'); inp.value = ''; inp.click(); },
-    describe() { if (!d().ai.key) { toast('Erst den OpenAI-Key eintragen'); return settingsSheet(); } describeSheet(); },
+    scan() { if (!AI.hasKey()) { toast('Erst den ' + AI.prov().name + '-Key eintragen'); return settingsSheet(); } const inp = $('#photo'); inp.value = ''; inp.click(); },
+    describe() { if (!AI.hasKey()) { toast('Erst den ' + AI.prov().name + '-Key eintragen'); return settingsSheet(); } describeSheet(); },
     async describego(ds, el) {
       const text = val('d-text'); if (!text) return toast('Schreib kurz, was du gegessen hast');
       el.disabled = true; el.textContent = 'Wird geschätzt …';
@@ -600,17 +616,17 @@
     savesteps() { d().stepsManual[Store.day()] = int('st-n', 0, 99999, 0); Store.save(); closeSheet(); render(); },
     // Coach
     send() { const t = $('#c-text'); const v = t.value; t.value = ''; sendChat(v); },
-    askcoach(ds) { if (!d().ai.key) { ui.tab = 'coach'; render(); return toast('Erst den OpenAI-Key eintragen'); } sendChat(ds.q); },
+    askcoach(ds) { if (!AI.hasKey()) { ui.tab = 'coach'; render(); return toast('Erst den ' + AI.prov().name + '-Key eintragen'); } sendChat(ds.q); },
     async loadmodels(ds, el) {
       const key = val('s-key'); if (!key) return toast('Erst den OpenAI-Key eintragen');
       el.disabled = true; el.textContent = 'Lädt …';
       try {
         const ids = await AI.listModels(key);
         if (!ids.length) throw new Error('Keine passenden Modelle gefunden.');
-        const sel = $('#s-model'), cur = sel.value;
+        const inp = $('#s-model'), cur = inp.value;
         d().ai.models = ids;
-        sel.innerHTML = ids.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
-        sel.value = ids.includes(cur) ? cur : AI.pickModel(ids);
+        $('#s-models').innerHTML = ids.map(m => `<option value="${esc(m)}">`).join('');
+        inp.value = ids.includes(cur) ? cur : AI.pickModel(ids);
         toast(ids.length + ' Modelle geladen');
       } catch (e) { toast(e.message); }
       el.disabled = false; el.textContent = 'Laden';
@@ -625,7 +641,7 @@
       g.kcal = int('s-kcal', 800, 6000, g.kcal); g.protein = int('s-protein', 20, 400, g.protein); g.steps = int('s-steps', 1000, 50000, g.steps);
       g.water = int('s-water', 500, 6000, g.water); g.trainMin = int('s-min', 5, 180, g.trainMin); g.perWeek = int('s-week', 1, 7, g.perWeek);
       for (let i = 0; i < 7; i++) { const v = val('s-d' + i); if (v) s.schedule[i] = v; else delete s.schedule[i]; }
-      s.ai.key = val('s-key'); s.ai.model = val('s-model') || s.ai.model;
+      keepAi();
       s.spotify.clientId = val('s-spid');
       if (/^\d\d:\d\d$/.test(val('s-caltime'))) s.calendar.time = val('s-caltime');
       Store.save(); Calendar.syncSoon(); closeSheet(); render(); toast('Gespeichert');

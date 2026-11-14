@@ -5,7 +5,7 @@ const Store = (() => {
   const fresh = () => ({
     profile: { name: '', weight: 70 },
     goals: { kcal: 2400, protein: 130, steps: 8000, water: 2500, trainMin: 30, perWeek: 3 },
-    ai: { provider: 'openai', key: '', model: 'gpt-5-mini' },
+    ai: { provider: 'runware', keys: { runware: '', openai: '' }, model: { runware: 'openai:gpt@5.4-mini', openai: 'gpt-5-mini' }, models: [] },
     spotify: { clientId: '' },                     // + access, refresh, expires nach dem Login
     calendar: { id: '', title: '', time: '17:00', eventIds: [] },
     plans: JSON.parse(JSON.stringify(DEFAULT_PLANS)),
@@ -28,7 +28,12 @@ const Store = (() => {
   // Neue Standardplaene aus Updates ergaenzen (eigene Aenderungen bleiben)
   for (const p of DEFAULT_PLANS) if (!d.plans.some(x => x.id === p.id)) d.plans.push(JSON.parse(JSON.stringify(p)));
   // Umstieg von OpenRouter auf OpenAI: alten Schluessel und Modell nicht weiterverwenden
-  if (d.ai.provider !== 'openai') { d.ai = { provider: 'openai', key: '', model: 'gpt-5-mini' }; }
+  if (!d.ai.keys) {
+    // Altes Format: { provider, key, model }. OpenRouter-Keys werden nicht uebernommen.
+    const old = d.ai, f = fresh().ai;
+    if (old.provider === 'openai' && old.key) { f.keys.openai = old.key; f.model.openai = old.model || f.model.openai; f.provider = 'openai'; }
+    d.ai = f;
+  }
 
   const save = () => {
     try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { /* Speicher voll oder gesperrt */ }
