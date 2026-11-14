@@ -1,25 +1,26 @@
-// KI ueber OpenRouter: Kalorien-Scanner und der Coach, der Dinge in der App anlegen kann.
+// KI ueber die OpenAI API: Kalorien-Scanner und der Coach, der Dinge in der App anlegen kann.
 const AI = (() => {
-  const URL = 'https://openrouter.ai/api/v1/chat/completions';
+  const URL = 'https://api.openai.com/v1/chat/completions';
 
   async function call(body) {
     const { key, model } = Store.d.ai;
-    if (!key) throw new Error('Kein OpenRouter-Key eingetragen. Öffne die Einstellungen (Zahnrad auf der Startseite).');
+    if (!key) throw new Error('Kein OpenAI-Key eingetragen. Öffne die Einstellungen (Zahnrad auf der Startseite).');
     if (!navigator.onLine) throw new Error('Keine Internetverbindung. Die KI braucht Internet, alles andere geht offline.');
     let res;
     try {
       res = await fetch(URL, {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json', 'X-Title': 'Glow Up' },
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
         body: JSON.stringify(Object.assign({ model }, body))
       });
-    } catch (e) { throw new Error('OpenRouter ist nicht erreichbar. Prüfe deine Internetverbindung.'); }
+    } catch (e) { throw new Error('OpenAI ist nicht erreichbar. Prüfe deine Internetverbindung.'); }
     const json = await res.json().catch(() => null);
     if (!res.ok || !json || json.error) {
       const msg = json && json.error && json.error.message;
-      if (res.status === 401) throw new Error('Der OpenRouter-Key wurde abgelehnt. Prüfe ihn in den Einstellungen.');
-      if (res.status === 402) throw new Error('Dein OpenRouter-Guthaben reicht nicht aus.');
-      throw new Error(msg || ('Fehler von OpenRouter (' + res.status + ').'));
+      if (res.status === 401) throw new Error('Der OpenAI-Key wurde abgelehnt. Prüfe ihn in den Einstellungen.');
+      if (res.status === 429) throw new Error('OpenAI: Limit erreicht oder kein Guthaben. Prüfe dein Konto auf platform.openai.com.');
+      if (res.status === 404 || /model/i.test(msg || '')) throw new Error('OpenAI: Das Modell „' + model + '“ ist nicht verfügbar. Wähle in den Einstellungen ein anderes.');
+      throw new Error(msg || ('Fehler von OpenAI (' + res.status + ').'));
     }
     return json.choices[0].message;
   }
@@ -34,7 +35,7 @@ const AI = (() => {
     const content = [];
     if (text) content.push({ type: 'text', text: 'Mahlzeit: ' + text });
     if (image) { content.push({ type: 'text', text: 'Schätze die Nährwerte der Mahlzeit auf dem Foto.' }); content.push({ type: 'image_url', image_url: { url: image } }); }
-    const msg = await call({ max_tokens: 400, messages: [{ role: 'system', content: SCAN }, { role: 'user', content }] });
+    const msg = await call({ max_completion_tokens: 2000, messages: [{ role: 'system', content: SCAN }, { role: 'user', content }] });
     const raw = typeof msg.content === 'string' ? msg.content : (msg.content || []).map(c => c.text || '').join('');
     const m = raw.match(/\{[\s\S]*\}/);
     if (!m) throw new Error('Die KI hat keine auswertbare Antwort geliefert. Versuch es noch einmal.');
@@ -192,7 +193,7 @@ Nutze nur diese IDs. Fehlt eine Übung, lege sie zuerst mit create_exercise an u
   async function coach(history, onTool) {
     const messages = [{ role: 'system', content: systemPrompt() }].concat(history.slice(-16).map(m => ({ role: m.role, content: m.text })));
     for (let i = 0; i < 6; i++) {
-      const msg = await call({ max_tokens: 1200, messages, tools: TOOLS });
+      const msg = await call({ max_completion_tokens: 4000, messages, tools: TOOLS });
       if (!msg.tool_calls || !msg.tool_calls.length) return (typeof msg.content === 'string' ? msg.content : '') || 'Erledigt.';
       messages.push(msg);
       for (const tc of msg.tool_calls) {
@@ -209,5 +210,18 @@ Nutze nur diese IDs. Fehlt eine Übung, lege sie zuerst mit create_exercise an u
     return 'Ich habe mehrere Schritte ausgeführt. Schau bitte kurz nach, ob alles passt.';
   }
 
-  return { scanMeal, shrink, coach };
+  // Verfuegbare Chat-Modelle des Kontos laden (fuer die Auswahl in den Einstellungen)
+  async function listModels(key) {
+    const res = await fetch('https://api.openai.com/v1/models', { headers: { Authorization: 'Bearer ' + key } });
+    if (res.status === 401) throw new Error('Der OpenAI-Key wurde abgelehnt.');
+    if (!res.ok) throw new Error('Modelle konnten nicht geladen werden (' + res.status + ').');
+    const j = await res.json();
+    return (j.data || [])
+      .filter(m => /^(gpt|o\d)/.test(m.id) && !/(audio|realtime|image|tts|transcribe|search|codex|instruct|embedding|moderation|cyber|\d{4}-\d\d-\d\d)/.test(m.id))
+      .sort((a, b) => b.created - a.created).map(m => m.id);
+  }
+  // Guenstiges, neues Modell vorschlagen: neuestes "mini", sonst das neueste
+  const pickModel = ids => ids.find(id => /mini/.test(id) && !/nano/.test(id)) || ids[0];
+
+  return { scanMeal, shrink, coach, listModels, pickModel };
 })();

@@ -89,17 +89,20 @@ const Spotify = (() => {
   const openApp = () => { location.href = 'spotify:'; };
 
   // Kleine Steuerleiste (HTML). Wird von der App in einen Platzhalter gesetzt.
+  // Tippen auf das Spotify-Logo oder das Albumbild oeffnet die Spotify-App.
   function bar() {
     const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    if (!connected()) return `<button class="spbar" data-a="settings"><span class="splogo"></span><span class="grow"><b>Spotify verbinden</b><small>Musik im Training steuern</small></span><span class="chev">›</span></button>`;
-    if (!now) return `<div class="spbar"><span class="splogo"></span><span class="grow"><b>Spotify</b><small>wird geladen …</small></span></div>`;
-    if (now.error || now.idle) return `<div class="spbar"><span class="splogo"></span><span class="grow"><b>${now.idle ? 'Gerade läuft nichts' : 'Spotify'}</b><small>${esc(now.error || 'Tippe Play oder öffne Spotify')}</small></span>
-      ${now.noDevice || now.idle ? '<button class="spbtn" data-a="spopen">Öffnen</button>' : ''}<button class="spbtn round" data-a="sp" data-cmd="play" aria-label="Abspielen">▶</button></div>`;
-    return `<div class="spbar">${now.cover ? `<img src="${esc(now.cover.url)}" alt="">` : '<span class="splogo"></span>'}
+    const logo = `<button class="splogo" data-a="spopen" aria-label="Spotify öffnen">${Ic('spotify')}</button>`;
+    if (!connected()) return `<div class="spbar">${logo}<button class="grow sptext" data-a="settings"><b>Spotify verbinden</b><small>Musik im Training steuern</small></button><span class="chev">${Ic('chev')}</span></div>`;
+    if (!now) return `<div class="spbar">${logo}<span class="grow"><b>Spotify</b><small>wird geladen …</small></span></div>`;
+    if (now.error || now.idle) return `<div class="spbar">${logo}<span class="grow"><b>${now.idle ? 'Gerade läuft nichts' : 'Spotify'}</b><small>${esc(now.error || 'Tippe Play oder öffne Spotify')}</small></span>
+      <button class="spbtn round" data-a="sp" data-cmd="play" aria-label="Abspielen">${Ic('play')}</button></div>`;
+    const art = now.cover ? `<button class="spcover" data-a="spopen" aria-label="Spotify öffnen"><img src="${esc(now.cover.url)}" alt=""></button>` : logo;
+    return `<div class="spbar">${art}
       <span class="grow"><b>${esc(now.title)}</b><small>${esc(now.artist)}</small></span>
-      <button class="spbtn round" data-a="sp" data-cmd="prev" aria-label="Zurück">⏮</button>
-      <button class="spbtn round main" data-a="sp" data-cmd="toggle" aria-label="${now.playing ? 'Pause' : 'Abspielen'}">${now.playing ? '❚❚' : '▶'}</button>
-      <button class="spbtn round" data-a="sp" data-cmd="next" aria-label="Weiter">⏭</button></div>`;
+      <button class="spbtn round" data-a="sp" data-cmd="prev" aria-label="Zurück">${Ic('prev')}</button>
+      <button class="spbtn round main" data-a="sp" data-cmd="toggle" aria-label="${now.playing ? 'Pause' : 'Abspielen'}">${now.playing ? Ic('pause') : Ic('play')}</button>
+      <button class="spbtn round" data-a="sp" data-cmd="next" aria-label="Weiter">${Ic('next')}</button></div>`;
   }
 
   return { REDIRECT, connected, login, handleRedirect, refresh, cmd, disconnect, openApp, bar, set onChange(f) { onChange = f; } };

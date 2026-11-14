@@ -11,6 +11,12 @@ const Figure = (() => {
   };
   const lerp = (a, b, t) => a + (b - a) * t;
   const pts = (...p) => p.map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' ');
+  // Weich beschleunigen und abbremsen, an beiden Enden kurz verweilen
+  const ease = t => t * t * t * (t * (6 * t - 15) + 10);
+  function phase(ph) {
+    const tri = ph < 0.5 ? ph * 2 : 2 - ph * 2;           // 0 -> 1 -> 0
+    return ease(Math.min(1, Math.max(0, (tri - 0.08) / 0.84)));
+  }
 
   function pose(ex, t) {
     const A = ex.a, B = ex.b || A, o = {};
@@ -36,19 +42,19 @@ const Figure = (() => {
     n.neck.setAttribute('points', pts(p.s, p.h));
     n.leg.setAttribute('points', pts(p.hp, p.k, p.f));
     n.arm.setAttribute('points', pts(p.s, p.e, p.ha));
-    n.head.setAttribute('cx', p.h[0]); n.head.setAttribute('cy', p.h[1]);
+    n.head.setAttribute('cx', p.h[0].toFixed(1)); n.head.setAttribute('cy', p.h[1].toFixed(1));
     for (const m of n.moving) {
       const j = p[m.prop.at];
-      m.node.setAttribute('x', j[0] + (m.prop.dx || 0));
-      m.node.setAttribute('y', j[1] + (m.prop.dy || 0));
+      m.node.setAttribute('x', (j[0] + (m.prop.dx || 0)).toFixed(1));
+      m.node.setAttribute('y', (j[1] + (m.prop.dy || 0)).toFixed(1));
     }
   }
 
   function loop(now) {
     for (const f of live) {
       if (!f.svg.isConnected) { live.delete(f); continue; }
-      const dur = f.ex.hold ? 3600 : 2400;
-      draw(f, 0.5 - 0.5 * Math.cos((now % dur) / dur * Math.PI * 2));
+      const dur = f.ex.hold ? 4000 : 2600;
+      draw(f, phase((now % dur) / dur));
     }
     if (live.size) requestAnimationFrame(loop); else running = false;
   }
@@ -57,7 +63,7 @@ const Figure = (() => {
   function create(exId, opts = {}) {
     const ex = (typeof Store !== 'undefined' && Store.exercise(exId)) || EXERCISES[exId] || EXERCISES.plank;
     const svg = el('svg', { viewBox: '10 0 180 130', class: 'figure', 'aria-hidden': 'true' });
-    const body = { fill: 'none', stroke: 'var(--fig)', 'stroke-width': 7, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };
+    const body = { fill: 'none', stroke: 'var(--fig)', 'stroke-width': 9.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };
     const back = Object.assign({}, body, { stroke: 'var(--fig-back)' });
     const nodes = { moving: [] };
 
@@ -71,10 +77,10 @@ const Figure = (() => {
     svg.appendChild(nodes.leg = el('polyline', body));
     svg.appendChild(nodes.torso = el('path', body));
     svg.appendChild(nodes.neck = el('polyline', body));
-    svg.appendChild(nodes.head = el('circle', { r: 8.5, fill: 'var(--fig)' }));
+    svg.appendChild(nodes.head = el('circle', { r: 10, fill: 'var(--fig)' }));
     for (const pr of ex.props || []) {
       if (pr.t === 'pack') {
-        const node = el('rect', { width: pr.w, height: pr.h, rx: 4, fill: 'var(--accent)' });
+        const node = el('rect', { width: pr.w, height: pr.h, rx: 4, fill: 'var(--fig-pack)' });
         svg.appendChild(node); nodes.moving.push({ node, prop: pr });
       }
     }

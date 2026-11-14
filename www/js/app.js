@@ -39,14 +39,14 @@
       const key = Store.day(dt), p = Store.plan(d().schedule[dt.getDay()]);
       const kraft = d().history.some(h => h.date === key && h.type === 'kraft');
       const cls = (kraft ? 'done ' : p ? 'plan ' : '') + (key === t ? 'today' : '');
-      const letter = kraft ? '✓' : p ? esc(p.name.replace(/^Tag\s+/i, '').slice(0, 2)) : '·';
+      const letter = kraft ? Ic('check') : p ? esc(p.name.replace(/^Tag\s+/i, '').slice(0, 2)) : '·';
       return `<div class="${cls}"><span>${WD[dt.getDay()]}</span><i>${letter}</i></div>`;
     }).join('');
 
     let today;
     if (plan) {
       today = `<div class="card">
-        <div class="between"><span class="eyebrow">${planDone ? 'Heute erledigt' : 'Heute dran'}</span><span class="pill${planDone ? '' : ' gray'}">${planDone ? '✓ Geschafft' : '≈ ' + Store.planMinutes(plan) + ' Min.'}</span></div>
+        <div class="between"><span class="eyebrow">${planDone ? 'Heute erledigt' : 'Heute dran'}</span><span class="pill${planDone ? '' : ' gray'}">${planDone ? Ic('check') + ' Geschafft' : '≈ ' + Store.planMinutes(plan) + ' Min.'}</span></div>
         <div class="row" style="margin:10px 0 14px">
           <div class="thumb"><i data-fig="${esc(plan.items[0].ex)}"></i></div>
           <div class="grow"><h3 style="font-size:22px">${esc(plan.name)}</h3><div class="muted small">${esc(plan.sub || '')} · ${plan.items.length} Übungen</div></div>
@@ -93,7 +93,7 @@
         <div class="bar"><i style="width:${pct(steps, g.steps) * 100}%;background:var(--accent-deep)"></i></div>
       </button>
       <div class="card">
-        <div class="between" style="margin:-4px 0"><span class="label">Wasser</span><button class="plus" data-a="water" data-ml="250" aria-label="250 ml Wasser eintragen">+</button></div>
+        <div class="between" style="margin:-4px 0"><span class="label">Wasser</span><button class="plus" data-a="water" data-ml="250" aria-label="250 ml Wasser eintragen">${Ic('plus')}</button></div>
         <div class="big" style="margin:4px 0 10px">${(water / 1000).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}<small>/ ${(g.water / 1000).toLocaleString('de-DE')} l</small></div>
         <div class="bar"><i style="width:${pct(water, g.water) * 100}%"></i></div>
       </div>
@@ -121,9 +121,9 @@
           <div class="thumb"><i data-fig="${esc(p.items[0].ex)}"></i></div>
           <div class="grow"><h3>${esc(p.name)}</h3><div class="muted small">${esc(p.sub || '')}</div>
           <div class="small" style="margin-top:4px"><span class="pill">${p.items.length} Übungen</span> <span class="pill gray">≈ ${Store.planMinutes(p)} Min.</span></div></div>
-          <span class="chev">›</span>
+          <span class="chev">${Ic('chev')}</span>
         </button>`).join('')}</div>
-        <button class="btn soft" style="margin-top:14px" data-a="askcoach" data-q="${seg === 'kraft' ? 'Bau mir einen neuen Kraftplan für zu Hause.' : 'Bau mir eine neue Dehnroutine.'}">✦ Neuen Plan vom Coach bauen lassen</button>`;
+        <button class="btn soft" style="margin-top:14px" data-a="askcoach" data-q="${seg === 'kraft' ? 'Bau mir einen neuen Kraftplan für zu Hause.' : 'Bau mir eine neue Dehnroutine.'}">${Ic('spark')} Neuen Plan vom Coach bauen lassen</button>`;
     }
     return `
     <div class="head"><div><div class="eyebrow">Zu Hause · ohne Geräte</div><h1>Training</h1></div></div>
@@ -142,7 +142,7 @@
         <button class="item" style="background:var(--card2)" data-a="exercise" data-ex="${esc(it.ex)}">
           <div class="thumb" style="background:var(--card)"><i data-fig="${esc(it.ex)}"></i></div>
           <div class="grow"><h3>${esc(ex.name)}</h3><div class="small"><span class="accent num">${itemLine(it)}</span>${it.note ? ' <span class="muted">· ' + esc(it.note) + '</span>' : ''}</div>
-          <div class="muted small">${it.rest ? 'Pause ' + it.rest + ' Sek.' : 'ohne Pause'}</div></div><span class="chev">›</span>
+          <div class="muted small">${it.rest ? 'Pause ' + it.rest + ' Sek.' : 'ohne Pause'}</div></div><span class="chev">${Ic('chev')}</span>
         </button>`; }).join('')}</div>
       <button class="btn" style="margin-top:16px" data-a="start" data-id="${esc(p.id)}">Training starten</button>
       ${p.custom ? `<button class="btn danger" style="margin-top:10px" data-a="delplan" data-id="${esc(p.id)}">Plan löschen</button>` : ''}`);
@@ -268,13 +268,13 @@
         ${ringSvg('var(--accent-deep)')}
         <div class="row" style="justify-content:center;text-align:left;gap:12px"><div class="thumb"><i data-fig="${esc(next.it.ex)}"></i></div>
           <div><div class="muted small">Als Nächstes</div><h3>${esc(nex.name)}</h3><div class="small accent num">${next.side ? (next.side === 1 ? 'Linke Seite · ' : 'Rechte Seite · ') : ''}Satz ${next.set} von ${next.it.sets}</div></div></div>
-      </div><div class="btns"><button class="btn ghost" data-a="pmore">+ 15 Sek.</button><button class="btn" data-a="pskip">Weiter</button></div>`;
+      </div><div class="btns"><button class="btn ghost" data-a="pmore">${Ic('plus')} 15 Sek.</button><button class="btn" data-a="pskip">Weiter</button></div>`;
     } else {
       const sub = `${st.side ? (st.side === 1 ? 'Linke Seite · ' : 'Rechte Seite · ') : ''}Satz ${st.set} von ${it.sets}${it.note ? ' · ' + esc(it.note) : ''}`;
       const main = it.sec
         ? ringSvg('var(--accent)').replace('class="restring"', 'class="restring" style="width:170px;height:170px"')
         : `<div><div class="muted small">Ziel: <b class="accent num">${esc(it.reps)}</b> Wiederholungen</div>
-           <div class="stepper" style="margin-top:8px"><button data-a="preps" data-n="-1">−</button><div><div class="count sm" id="preps">${P.reps}</div><div class="muted small">geschafft</div></div><button data-a="preps" data-n="1">+</button></div></div>`;
+           <div class="stepper" style="margin-top:8px"><button data-a="preps" data-n="-1" aria-label="Weniger">${Ic('minus')}</button><div><div class="count sm" id="preps">${P.reps}</div><div class="muted small">geschafft</div></div><button data-a="preps" data-n="1" aria-label="Mehr">${Ic('plus')}</button></div></div>`;
       const btn = it.sec
         ? (P.running ? `<button class="btn ghost" data-a="ppause">Pause</button>` : `<button class="btn" data-a="pgo">${P.left < it.sec ? 'Weiter' : 'Start'}</button>`)
         : `<button class="btn" data-a="pdone">Satz geschafft</button>`;
@@ -323,7 +323,7 @@
     const left = g.kcal - tot.kcal;
     const groups = SLOTS.map(s => { const m = meals.filter(x => x.slot === s); return m.length ? `<div class="label" style="margin-top:14px">${s}</div>` + m.map(x => `
       <div class="meal"><div class="grow"><b>${esc(x.name)}</b><span class="muted small">${nf(x.p)} g E · ${nf(x.c)} g K · ${nf(x.f)} g F</span></div>
-      <span class="num">${nf(x.kcal)}</span><button class="x" data-a="delmeal" data-id="${esc(x.id)}" aria-label="Löschen">×</button></div>`).join('') : ''; }).join('');
+      <span class="num">${nf(x.kcal)}</span><button class="x" data-a="delmeal" data-id="${esc(x.id)}" aria-label="Löschen">${Ic('close')}</button></div>`).join('') : ''; }).join('');
     const macro = (name, v, goal, color) => `<div><div class="between small"><span class="muted">${name}</span><b class="num">${nf(v)}${goal ? '<span class="muted"> / ' + goal + '</span>' : ''} g</b></div><div class="bar" style="margin-top:6px"><i style="width:${pct(v, goal || Math.max(v, 1)) * 100}%;background:${color}"></i></div></div>`;
     const glasses = Math.max(8, Math.ceil(g.water / 250));
     return `
@@ -338,8 +338,8 @@
     </div>
 
     <div class="grid2">
-      <button class="btn" data-a="scan">📷 Foto scannen</button>
-      <button class="btn ghost" data-a="addmeal">+ Eintragen</button>
+      <button class="btn" data-a="scan">${Ic('scan')} Foto scannen</button>
+      <button class="btn ghost" data-a="addmeal">${Ic('plus')} Eintragen</button>
     </div>
 
     <div class="card"><div class="between"><span class="label">Mahlzeiten</span><span class="muted small">${meals.length} Einträge</span></div>
@@ -348,7 +348,7 @@
     <div class="card">
       <div class="between"><span class="label">Wasser</span><span class="num">${nf(water)} <span class="muted">/ ${nf(g.water)} ml</span></span></div>
       <div style="display:flex;flex-wrap:wrap;gap:7px;margin:12px 0">${Array.from({ length: glasses }, (_, i) => `<i style="width:22px;height:30px;border-radius:5px 5px 9px 9px;background:${(i + 1) * 250 <= water ? 'var(--accent)' : 'var(--card2)'}"></i>`).join('')}</div>
-      <div class="btns"><button class="btn soft sm" style="flex:1" data-a="water" data-ml="250">+ 250 ml</button><button class="btn soft sm" style="flex:1" data-a="water" data-ml="500">+ 500 ml</button><button class="btn ghost sm" data-a="water" data-ml="-250">−</button></div>
+      <div class="btns"><button class="btn soft sm" style="flex:1" data-a="water" data-ml="250">${Ic('plus')} 250 ml</button><button class="btn soft sm" style="flex:1" data-a="water" data-ml="500">${Ic('plus')} 500 ml</button><button class="btn ghost sm" data-a="water" data-ml="-250" aria-label="250 ml weniger">${Ic('minus')}</button></div>
     </div>`;
   }
 
@@ -356,7 +356,7 @@
     openSheet(`
       <h2>Mahlzeit eintragen</h2>
       ${info}
-      <div class="btns" style="margin-top:4px"><button class="btn soft sm" style="flex:1" data-a="scan">📷 Foto (KI)</button><button class="btn soft sm" style="flex:1" data-a="describe">✦ Beschreiben (KI)</button></div>
+      <div class="btns" style="margin-top:4px"><button class="btn soft sm" style="flex:1" data-a="scan">${Ic('camera')} Foto (KI)</button><button class="btn soft sm" style="flex:1" data-a="describe">${Ic('spark')} Beschreiben (KI)</button></div>
       <div class="field"><label for="m-search">Schnell aus der Liste (offline)</label><input id="m-search" placeholder="z. B. Banane, Reis, Quark" autocomplete="off"></div>
       <div id="m-hits" class="chips" style="flex-wrap:wrap;overflow:visible;padding-top:8px"></div>
       <div class="field"><label for="m-name">Name</label><input id="m-name" value="${esc(pre.name || '')}" placeholder="Was hast du gegessen?"></div>
@@ -375,17 +375,24 @@
   }
 
   async function scanPhoto(file) {
-    openSheet(`<h2>Foto wird ausgewertet</h2><div class="card" style="background:var(--card2)"><div class="dots"><i></i><i></i><i></i></div><div class="muted small" style="margin-top:8px">Die KI schätzt Kalorien und Nährwerte. Das dauert ein paar Sekunden.</div></div>`);
+    const preview = (window.URL || window.webkitURL).createObjectURL(file);
+    openSheet(`<h2>Essen wird gescannt</h2>
+      <div class="scan"><img src="${preview}" alt="Foto deines Essens"><span class="beam"></span><i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i><i class="corner c4"></i></div>
+      <div class="muted small" style="margin-top:12px;text-align:center">Die KI schätzt Kalorien und Nährwerte. Das dauert ein paar Sekunden.</div>`);
+    const started = Date.now();
     try {
       const r = await AI.scanMeal({ image: await AI.shrink(file) });
+      // Die Scan-Animation mindestens kurz zeigen, auch wenn die Antwort sehr schnell kommt
+      await new Promise(ok => setTimeout(ok, Math.max(0, 1800 - (Date.now() - started))));
       if (!r.kcal) return mealSheet({}, `<div class="note warn">${esc(r.hinweis || 'Auf dem Foto wurde kein Essen erkannt.')}</div>`);
       mealSheet(r, `<div class="note"><b>KI-Schätzung${r.portion ? ' · ' + esc(r.portion) : ''}</b><br>${esc(r.hinweis || 'Prüfe die Werte kurz und passe sie an, wenn nötig.')}</div>`);
     } catch (e) { mealSheet({}, `<div class="note warn">${esc(e.message)}</div>`); }
+    finally { (window.URL || window.webkitURL).revokeObjectURL(preview); }
   }
 
   function describeSheet() {
     openSheet(`<h2>Mahlzeit beschreiben</h2><div class="field"><label for="d-text">Was und wie viel?</label><textarea id="d-text" rows="3" placeholder="z. B. 2 Scheiben Vollkornbrot mit Käse und ein Apfel"></textarea></div>
-      <button class="btn" style="margin-top:14px" data-a="describego">✦ Nährwerte schätzen</button>`);
+      <button class="btn" style="margin-top:14px" data-a="describego">${Ic('spark')} Nährwerte schätzen</button>`);
     setTimeout(() => $('#d-text') && $('#d-text').focus(), 250);
   }
 
@@ -451,13 +458,13 @@
     const chat = d().chat, hasKey = !!d().ai.key;
     const chips = ['Mach Tag A etwas schwerer', 'Bau mir einen 10-Minuten-Bauchplan', 'Was soll ich heute noch essen?', 'Stell mein Kalorienziel auf Muskelaufbau ein', 'Erstelle eine Dehnroutine für den Rücken'];
     return `
-    <div class="head"><div><div class="eyebrow">KI · ${esc(d().ai.model.split('/').pop())}</div><h1>Coach</h1></div>${chat.length ? '<button class="btn sm ghost" data-a="clearchat">Leeren</button>' : ''}</div>
-    ${hasKey ? '' : `<div class="card"><h3>OpenRouter-Key fehlt</h3><div class="muted small" style="margin:6px 0 12px">Der Coach und der Kalorien-Scanner brauchen deinen eigenen OpenRouter-Key. Er bleibt nur auf diesem Gerät gespeichert.</div><button class="btn" data-a="settings">Key eintragen</button></div>`}
+    <div class="head"><div><div class="eyebrow">KI · ${esc(d().ai.model)}</div><h1>Coach</h1></div>${chat.length ? '<button class="btn sm ghost" data-a="clearchat">Leeren</button>' : ''}</div>
+    ${hasKey ? '' : `<div class="card"><h3>OpenAI-Key fehlt</h3><div class="muted small" style="margin:6px 0 12px">Der Coach und der Kalorien-Scanner brauchen deinen eigenen OpenAI-API-Key. Er bleibt nur auf diesem Gerät gespeichert.</div><button class="btn" data-a="settings">Key eintragen</button></div>`}
     ${chat.length ? '' : `<div class="card" style="margin-top:12px"><h3>Ich kann Dinge in der App für dich bauen</h3><div class="muted small" style="margin-top:6px">Zum Beispiel neue Trainingspläne und Dehnroutinen anlegen, Pläne schwerer machen, deinen Wochenplan und deine Ziele ändern oder Mahlzeiten eintragen. Sag einfach, was du willst.</div></div>`}
-    <div class="chat" style="margin-top:12px">${chat.map(m => `<div class="msg ${m.role}">${m.role === 'tool' ? '✦ ' : ''}${esc(m.text)}</div>`).join('')}${ui.chatBusy ? '<div class="msg assistant"><span class="dots"><i></i><i></i><i></i></span></div>' : ''}</div>
+    <div class="chat" style="margin-top:12px">${chat.map(m => `<div class="msg ${m.role}${m.err ? ' err' : ''}">${m.role === 'tool' ? Ic('spark') : ''}${m.err ? Ic('warn') + ' ' : ''}${esc(m.text)}</div>`).join('')}${ui.chatBusy ? '<div class="msg assistant"><span class="dots"><i></i><i></i><i></i></span></div>' : ''}</div>
     <div style="height:150px"></div>
     <div class="composer"><div style="flex:1;min-width:0">${chat.length ? '' : `<div class="chips">${chips.map(c => `<button data-a="askcoach" data-q="${esc(c)}">${esc(c)}</button>`).join('')}</div>`}
-      <div class="row" style="gap:8px"><textarea id="c-text" placeholder="Nachricht an den Coach" rows="1"></textarea><button class="send" data-a="send" aria-label="Senden">↑</button></div></div></div>`;
+      <div class="row" style="gap:8px"><textarea id="c-text" placeholder="Nachricht an den Coach" rows="1"></textarea><button class="send" data-a="send" aria-label="Senden">${Ic('send')}</button></div></div></div>`;
   }
 
   async function sendChat(text) {
@@ -472,7 +479,7 @@
       });
       if (tools.length) d().chat.push({ role: 'tool', text: [...new Set(tools)].join(' · ') });
       d().chat.push({ role: 'assistant', text: answer });
-    } catch (e) { d().chat.push({ role: 'assistant', text: '⚠️ ' + e.message }); }
+    } catch (e) { d().chat.push({ role: 'assistant', text: e.message, err: true }); }
     ui.chatBusy = false; d().chat = d().chat.slice(-60); Store.save();
     if (ui.tab === 'coach') { render(); scrollEnd(); } else toast('Der Coach hat geantwortet');
   }
@@ -482,7 +489,7 @@
   function settingsSheet() {
     const s = d(), g = s.goals;
     const opt = (v, cur) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>`;
-    const models = ['anthropic/claude-sonnet-5.5', 'anthropic/claude-haiku-5.5', 'anthropic/claude-opus-5.5'];
+    const models = (s.ai.models && s.ai.models.length ? s.ai.models : ['gpt-5-mini', 'gpt-5', 'gpt-4.1-mini']).slice();
     if (!models.includes(s.ai.model)) models.unshift(s.ai.model);
     openSheet(`
       <h2>Einstellungen</h2>
@@ -505,7 +512,7 @@
       <div class="field"><label for="s-spid">Spotify Client ID</label><input id="s-spid" value="${esc(s.spotify.clientId)}" placeholder="aus dem Spotify Developer Dashboard" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
       <div class="note">Einmalig: Auf developer.spotify.com eine App anlegen, als Redirect URI <b>${Spotify.REDIRECT}</b> eintragen und „Web API“ anhaken. Steuern geht nur mit Spotify Premium.</div>
       <div class="btns" style="margin-top:12px">${Spotify.connected()
-        ? `<span class="pill" style="align-self:center">✓ Verbunden</span><button class="btn sm ghost" data-a="spdisconnect">Trennen</button>`
+        ? `<span class="pill" style="align-self:center">${Ic('check')} Verbunden</span><button class="btn sm ghost" data-a="spdisconnect">Trennen</button>`
         : `<button class="btn sm soft" data-a="spconnect">Mit Spotify verbinden</button>`}</div>
 
       <h2>Kalender</h2>
@@ -518,10 +525,10 @@
       <h2>Widgets</h2>
       <div class="muted small">Halte auf dem Homescreen eine freie Stelle gedrückt → + → „Glow Up“. Es gibt Ringe, Heute, Schritte und Woche, auch für den Sperrbildschirm.</div>
 
-      <h2>KI (OpenRouter)</h2>
-      <div class="field"><label for="s-key">OpenRouter-Key</label><input id="s-key" type="password" value="${esc(s.ai.key)}" placeholder="sk-or-…" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
-      <div class="field"><label for="s-model">Modell</label><select id="s-model">${models.map(m => opt(m, s.ai.model) + esc(m) + '</option>').join('')}</select></div>
-      <div class="note">Den Key bekommst du auf openrouter.ai unter „Keys“. Er wird nur auf diesem Gerät gespeichert und nur an OpenRouter geschickt. Jede KI-Anfrage kostet dort etwas Guthaben. Haiku ist am günstigsten.</div>
+      <h2>KI (OpenAI)</h2>
+      <div class="field"><label for="s-key">OpenAI-API-Key</label><input id="s-key" type="password" value="${esc(s.ai.key)}" placeholder="sk-…" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="field"><label for="s-model">Modell</label><div class="row" style="gap:8px"><select id="s-model" style="flex:1">${models.map(m => opt(m, s.ai.model) + esc(m) + '</option>').join('')}</select><button class="btn sm ghost" data-a="loadmodels">Laden</button></div></div>
+      <div class="note">Den Key bekommst du auf platform.openai.com unter „API keys“. Er wird nur auf diesem Gerät gespeichert und nur an OpenAI geschickt. Jede KI-Anfrage kostet dort etwas Guthaben. „Laden“ holt die Modelle deines Kontos, ein „mini“-Modell ist am günstigsten.</div>
 
       <button class="btn" style="margin-top:18px" data-a="savesettings">Speichern</button>
       <button class="btn danger" style="margin-top:10px" data-a="reset">Alle Daten löschen</button>
@@ -567,8 +574,8 @@
     // Ernaehrung
     water(ds) { const t = Store.day(); d().water[t] = Math.max(0, (d().water[t] || 0) + (+ds.ml)); Store.save(); render(); },
     addmeal() { mealSheet(); },
-    scan() { if (!d().ai.key) { toast('Erst den OpenRouter-Key eintragen'); return settingsSheet(); } const inp = $('#photo'); inp.value = ''; inp.click(); },
-    describe() { if (!d().ai.key) { toast('Erst den OpenRouter-Key eintragen'); return settingsSheet(); } describeSheet(); },
+    scan() { if (!d().ai.key) { toast('Erst den OpenAI-Key eintragen'); return settingsSheet(); } const inp = $('#photo'); inp.value = ''; inp.click(); },
+    describe() { if (!d().ai.key) { toast('Erst den OpenAI-Key eintragen'); return settingsSheet(); } describeSheet(); },
     async describego(ds, el) {
       const text = val('d-text'); if (!text) return toast('Schreib kurz, was du gegessen hast');
       el.disabled = true; el.textContent = 'Wird geschätzt …';
@@ -593,7 +600,21 @@
     savesteps() { d().stepsManual[Store.day()] = int('st-n', 0, 99999, 0); Store.save(); closeSheet(); render(); },
     // Coach
     send() { const t = $('#c-text'); const v = t.value; t.value = ''; sendChat(v); },
-    askcoach(ds) { if (!d().ai.key) { ui.tab = 'coach'; render(); return toast('Erst den OpenRouter-Key eintragen'); } sendChat(ds.q); },
+    askcoach(ds) { if (!d().ai.key) { ui.tab = 'coach'; render(); return toast('Erst den OpenAI-Key eintragen'); } sendChat(ds.q); },
+    async loadmodels(ds, el) {
+      const key = val('s-key'); if (!key) return toast('Erst den OpenAI-Key eintragen');
+      el.disabled = true; el.textContent = 'Lädt …';
+      try {
+        const ids = await AI.listModels(key);
+        if (!ids.length) throw new Error('Keine passenden Modelle gefunden.');
+        const sel = $('#s-model'), cur = sel.value;
+        d().ai.models = ids;
+        sel.innerHTML = ids.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+        sel.value = ids.includes(cur) ? cur : AI.pickModel(ids);
+        toast(ids.length + ' Modelle geladen');
+      } catch (e) { toast(e.message); }
+      el.disabled = false; el.textContent = 'Laden';
+    },
     clearchat() { d().chat = []; Store.save(); render(); },
     // Einstellungen
     settings: settingsSheet,
@@ -623,7 +644,7 @@
       try {
         const cals = await Calendar.list();
         openSheet(`<h2>Kalender wählen</h2><div class="muted small" style="margin-bottom:12px">Google-Kalender stehen oben. Fehlt er, füge dein Google-Konto in den iPhone-Einstellungen unter Kalender → Accounts hinzu.</div>
-          <div class="list">${cals.map(k => `<button class="item" data-a="calchoose" data-id="${esc(k.id)}" data-title="${esc(k.title)}"><div class="grow"><h3>${esc(k.title)}</h3><div class="muted small">${esc(k.source)}</div></div><span class="chev">›</span></button>`).join('') || '<div class="muted">Keine Kalender gefunden.</div>'}</div>`);
+          <div class="list">${cals.map(k => `<button class="item" data-a="calchoose" data-id="${esc(k.id)}" data-title="${esc(k.title)}"><div class="grow"><h3>${esc(k.title)}</h3><div class="muted small">${esc(k.source)}</div></div><span class="chev">${Ic('chev')}</span></button>`).join('') || '<div class="muted">Keine Kalender gefunden.</div>'}</div>`);
       } catch (e) { toast(e.message); }
     },
     async calchoose(ds) {
