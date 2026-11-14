@@ -1,21 +1,12 @@
-// KI ueber Runware, OpenAI, OpenRouter oder Google Gemini (alle sprechen das OpenAI-Chat-Format):
+// KI ueber Google Gemini (gemini-3.8-flash, OpenAI-kompatible Schnittstelle von Google):
 // Kalorien-Scanner und der Coach, der Dinge in der App anlegen kann.
 const AI = (() => {
-  const PROVIDERS = {
-    runware: { name: 'Runware', url: 'https://api.runware.ai/v1/chat/completions', site: 'runware.ai',
-      models: ['openai:gpt@5.4-mini', 'openai:gpt@5.5', 'google:gemini@3.1-pro', 'anthropic:claude@sonnet-5.5'] },
-    openai: { name: 'OpenAI', url: 'https://api.openai.com/v1/chat/completions', site: 'platform.openai.com',
-      models: ['gpt-5-mini', 'gpt-5', 'gpt-4.1-mini'], modelsUrl: 'https://api.openai.com/v1/models', keyHint: 'sk-…' },
-    openrouter: { name: 'OpenRouter', url: 'https://openrouter.ai/api/v1/chat/completions', site: 'openrouter.ai', tokens: 'max_tokens',
-      models: ['openai/gpt-5-mini', 'google/gemini-2.5-flash', 'anthropic/claude-sonnet-5.5'], modelsUrl: 'https://openrouter.ai/api/v1/models', keyHint: 'sk-or-…' },
-    gemini: { name: 'Google Gemini', url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', site: 'aistudio.google.com', tokens: 'max_tokens',
-      models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite'], modelsUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/models', keyHint: 'AIza…' }
-  };
-  const ai = () => Store.d.ai;
-  const prov = () => PROVIDERS[ai().provider] || PROVIDERS.runware;
-  const key = () => (ai().keys || {})[ai().provider] || '';
-  const model = () => (ai().model || {})[ai().provider] || prov().models[0];
+  const P = { name: 'Google Gemini', url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', site: 'aistudio.google.com' };
+  const MODEL = 'gemini-3.8-flash';
+  const key = () => ((Store.d.ai.keys || {}).gemini || '').trim();
   const hasKey = () => !!key();
+  const prov = () => P;
+  const model = () => MODEL;
 
   // Auf dem iPhone ueber die native HTTP-Schnittstelle (keine CORS-Probleme), im Browser per fetch
   async function get(url, auth) {
@@ -42,27 +33,24 @@ const AI = (() => {
   }
 
   async function call(body) {
-    const P = prov(), m = model();
-    if (!hasKey()) throw new Error('Kein ' + P.name + '-Key eingetragen. Öffne die Einstellungen (Zahnrad auf der Startseite).');
+    if (!hasKey()) throw new Error('Kein Gemini-Key eingetragen. Öffne die Einstellungen (Zahnrad auf der Startseite).');
     if (!navigator.onLine) throw new Error('Keine Internetverbindung. Die KI braucht Internet, alles andere geht offline.');
-    const req = Object.assign({ model: m }, body);
-    // Manche Anbieter kennen nur max_tokens
-    if (P.tokens === 'max_tokens' && req.max_completion_tokens) { req.max_tokens = req.max_completion_tokens; delete req.max_completion_tokens; }
-    // OpenAI-Denkmodelle lehnen Werkzeuge bei Runware sonst ab
-    if (ai().provider === 'runware' && /^openai:/.test(m) && body.tools) req.reasoning_effort = 'none';
+    // Wenig "Nachdenken": schneller und guenstiger, reicht fuer Coach und Scan
+    const req = Object.assign({ model: MODEL, reasoning_effort: 'low' }, body);
     let res;
     try { res = await post(P.url, key(), req); }
-    catch (e) { throw new Error(P.name + ' ist nicht erreichbar. Prüfe deine Internetverbindung.'); }
+    catch (e) { throw new Error('Google Gemini ist nicht erreichbar. Prüfe deine Internetverbindung.'); }
     const json = res.json;
-    if (!res.ok || !json || json.error || !json.choices) {
-      const err = json && (json.error || (json.errors && json.errors[0]));
-      const msg = err && (err.message || err.responseContent || (typeof err === 'string' ? err : ''));
-      if (res.status === 401 || res.status === 403) throw new Error('Der ' + P.name + '-Key wurde abgelehnt. Prüfe ihn in den Einstellungen.');
-      if (res.status === 402 || res.status === 429) throw new Error(P.name + ': Limit erreicht oder kein Guthaben. Prüfe dein Konto auf ' + P.site + '.');
-      if (res.status === 404 || /model/i.test(msg || '')) throw new Error(P.name + ': Das Modell „' + m + '“ ist nicht verfügbar. Wähle in den Einstellungen ein anderes.');
-      throw new Error(msg || ('Fehler von ' + P.name + ' (' + res.status + ').'));
+    const j0 = Array.isArray(json) ? json[0] : json;
+    if (!res.ok || !j0 || j0.error || !j0.choices) {
+      const err = j0 && j0.error;
+      const msg = err && (err.message || (typeof err === 'string' ? err : ''));
+      if (res.status === 400 && /api key/i.test(msg || '')) throw new Error('Der Gemini-Key ist ungültig. Prüfe ihn in den Einstellungen.');
+      if (res.status === 401 || res.status === 403) throw new Error('Der Gemini-Key wurde abgelehnt. Prüfe ihn in den Einstellungen.');
+      if (res.status === 429) throw new Error('Gemini: Zu viele Anfragen oder Kontingent aufgebraucht. Warte kurz und versuch es nochmal.');
+      throw new Error(msg ? 'Gemini: ' + msg : ('Fehler von Gemini (' + res.status + ').'));
     }
-    return json.choices[0].message;
+    return j0.choices[0].message;
   }
 
   // ---------- Kalorien-Scanner ----------
@@ -75,7 +63,7 @@ const AI = (() => {
     const content = [];
     if (text) content.push({ type: 'text', text: 'Mahlzeit: ' + text });
     if (image) { content.push({ type: 'text', text: 'Schätze die Nährwerte der Mahlzeit auf dem Foto.' }); content.push({ type: 'image_url', image_url: { url: image } }); }
-    const msg = await call({ max_completion_tokens: 2000, messages: [{ role: 'system', content: SCAN }, { role: 'user', content }] });
+    const msg = await call({ response_format: { type: 'json_object' }, messages: [{ role: 'system', content: SCAN }, { role: 'user', content }] });
     const raw = typeof msg.content === 'string' ? msg.content : (msg.content || []).map(c => c.text || '').join('');
     const m = raw.match(/\{[\s\S]*\}/);
     if (!m) throw new Error('Die KI hat keine auswertbare Antwort geliefert. Versuch es noch einmal.');
@@ -240,7 +228,7 @@ Nutze nur diese IDs. Fehlt eine Übung, lege sie zuerst mit create_exercise an u
       return { role: m.role, content: m.text || (m.image ? '[Bild]' : '') };
     }));
     for (let i = 0; i < 6; i++) {
-      const msg = await call({ max_completion_tokens: 4000, messages, tools: TOOLS });
+      const msg = await call({ messages, tools: TOOLS });
       if (!msg.tool_calls || !msg.tool_calls.length) return (typeof msg.content === 'string' ? msg.content : '') || 'Erledigt.';
       messages.push(msg);
       for (const tc of msg.tool_calls) {
@@ -257,25 +245,5 @@ Nutze nur diese IDs. Fehlt eine Übung, lege sie zuerst mit create_exercise an u
     return 'Ich habe mehrere Schritte ausgeführt. Schau bitte kurz nach, ob alles passt.';
   }
 
-  // Verfuegbare Chat-Modelle des Kontos laden (fuer die Auswahl in den Einstellungen)
-  async function listModels(provider, key) {
-    const P = PROVIDERS[provider];
-    if (!P || !P.modelsUrl) throw new Error(P ? P.name + ' bietet keine Modell-Liste an. Trag den Modellnamen von Hand ein.' : 'Unbekannter Anbieter');
-    const res = await get(P.modelsUrl, key);
-    if (res.status === 401 || res.status === 403) throw new Error('Der ' + P.name + '-Key wurde abgelehnt.');
-    if (!res.ok || !res.json) throw new Error('Modelle konnten nicht geladen werden (' + res.status + ').');
-    const skip = /(audio|realtime|image|tts|transcribe|search|codex|instruct|embedding|moderation|cyber|imagen|veo|aqa|\d{4}-\d\d-\d\d)/;
-    let list = (res.json.data || []).map(m => ({ id: String(m.id).replace(/^models\//, ''), created: m.created || 0, m }));
-    if (provider === 'openai') list = list.filter(x => /^(gpt|o\d)/.test(x.id));
-    if (provider === 'gemini') list = list.filter(x => /^gemini/.test(x.id));
-    if (provider === 'openrouter') list = list.filter(x => {
-      const mod = (x.m.architecture && x.m.architecture.input_modalities) || [];
-      return (x.m.supported_parameters || []).includes('tools') && (!mod.length || mod.includes('image'));
-    });
-    return list.filter(x => !skip.test(x.id)).sort((a, b) => b.created - a.created).map(x => x.id);
-  }
-  // Guenstiges, neues Modell vorschlagen: neuestes "mini", sonst das neueste
-  const pickModel = ids => ids.find(id => /(mini|flash)/.test(id) && !/(nano|lite)/.test(id)) || ids[0];
-
-  return { PROVIDERS, prov, model, hasKey, scanMeal, shrink, coach, listModels, pickModel };
+  return { prov, model, hasKey, scanMeal, shrink, coach };
 })();

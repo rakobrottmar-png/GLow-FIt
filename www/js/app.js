@@ -374,21 +374,55 @@
     search.addEventListener('input', () => show(search.value.trim())); show('');
   }
 
+  // Kalorien-Scan: eigenes Fenster mit Foto und laufendem Scan-Strich, danach das Ergebnis
+  const scanEl = () => $('#scanner');
+  function scanView(img, state, r, err) {
+    const head = `<div class="ptop"><button class="iconbtn" data-a="scanclose" aria-label="Schließen">${Ic('close')}</button><div class="grow"></div></div>`;
+    const photo = `<div class="scan${state === 'busy' ? '' : ' done'}"><img src="${img}" alt="Foto deines Essens">${state === 'busy' ? '<span class="beam"></span>' : ''}<i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i><i class="corner c4"></i></div>`;
+    let body;
+    if (state === 'busy') {
+      body = `<div class="scanmsg"><h2>Scannt …</h2><div class="muted small">Gemini erkennt dein Essen und schätzt die Nährwerte.</div></div>`;
+    } else if (state === 'error') {
+      body = `<div class="scanmsg"><h2>Das hat nicht geklappt</h2><div class="note warn">${esc(err)}</div></div>
+        <div class="btns"><button class="btn ghost" data-a="scanclose">Schließen</button><button class="btn" data-a="scanretry">Neues Foto</button></div>`;
+    } else if (!r.kcal) {
+      body = `<div class="scanmsg"><h2>Kein Essen erkannt</h2><div class="muted small">${esc(r.hinweis || 'Versuch es mit einem Foto, auf dem das Essen gut zu sehen ist.')}</div></div>
+        <div class="btns"><button class="btn ghost" data-a="scanclose">Schließen</button><button class="btn" data-a="scanretry">Neues Foto</button></div>`;
+    } else {
+      body = `<div class="scanres">
+          <div class="eyebrow accent">Erkannt</div>
+          <h2 style="margin:4px 0 2px">${esc(r.name)}</h2>
+          ${r.portion ? `<div class="muted small">${esc(r.portion)}</div>` : ''}
+          <div class="big" style="font-size:44px;margin:14px 0 12px">${nf(r.kcal)}<small>kcal</small></div>
+          <div class="macros"><div><b class="num">${nf(r.p)} g</b><span>Eiweiß</span></div><div><b class="num">${nf(r.c)} g</b><span>Kohlenhydrate</span></div><div><b class="num">${nf(r.f)} g</b><span>Fett</span></div></div>
+          ${r.hinweis ? `<div class="muted small" style="margin-top:12px">${esc(r.hinweis)}</div>` : ''}
+        </div>
+        <div class="btns"><button class="btn ghost" data-a="scanedit">Anpassen</button><button class="btn" data-a="scansave">${Ic('check')} Eintragen</button></div>`;
+    }
+    scanEl().innerHTML = head + `<div class="scanbody">${photo}${body}</div>`;
+  }
+
   async function scanPhoto(file) {
-    const preview = (window.URL || window.webkitURL).createObjectURL(file);
-    openSheet(`<h2>Essen wird gescannt</h2>
-      <div class="scan"><img src="${preview}" alt="Foto deines Essens"><span class="beam"></span><i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i><i class="corner c4"></i></div>
-      <div class="muted small" style="margin-top:12px;text-align:center">Die KI schätzt Kalorien und Nährwerte. Das dauert ein paar Sekunden.</div>`);
+    closeSheet();
+    const el = scanEl(); el.hidden = false;
+    el.innerHTML = `<div class="scanbody"><div class="scanmsg"><h2>Foto wird geladen …</h2></div></div>`;
+    let img;
+    try { img = await AI.shrink(file); } catch (e) { return scanView('', 'error', null, e.message); }
+    ui.scan = { img, r: null };
+    scanView(img, 'busy');
     const started = Date.now();
     try {
-      const r = await AI.scanMeal({ image: await AI.shrink(file) });
-      // Die Scan-Animation mindestens kurz zeigen, auch wenn die Antwort sehr schnell kommt
-      await new Promise(ok => setTimeout(ok, Math.max(0, 1800 - (Date.now() - started))));
-      if (!r.kcal) return mealSheet({}, `<div class="note warn">${esc(r.hinweis || 'Auf dem Foto wurde kein Essen erkannt.')}</div>`);
-      mealSheet(r, `<div class="note"><b>KI-Schätzung${r.portion ? ' · ' + esc(r.portion) : ''}</b><br>${esc(r.hinweis || 'Prüfe die Werte kurz und passe sie an, wenn nötig.')}</div>`);
-    } catch (e) { mealSheet({}, `<div class="note warn">${esc(e.message)}</div>`); }
-    finally { (window.URL || window.webkitURL).revokeObjectURL(preview); }
+      const r = await AI.scanMeal({ image: img });
+      // Den Scan-Strich mindestens kurz zeigen, auch wenn die Antwort sehr schnell kommt
+      await new Promise(ok => setTimeout(ok, Math.max(0, 2200 - (Date.now() - started))));
+      if (!ui.scan || ui.scan.img !== img) return;   // Fenster wurde geschlossen
+      ui.scan.r = r; scanView(img, 'result', r);
+      Native.haptic('MEDIUM');
+    } catch (e) {
+      if (ui.scan && ui.scan.img === img) scanView(img, 'error', null, e.message);
+    }
   }
+  function closeScanner() { ui.scan = null; scanEl().hidden = true; scanEl().innerHTML = ''; }
 
   function describeSheet() {
     openSheet(`<h2>Mahlzeit beschreiben</h2><div class="field"><label for="d-text">Was und wie viel?</label><textarea id="d-text" rows="3" placeholder="z. B. 2 Scheiben Vollkornbrot mit Käse und ein Apfel"></textarea></div>
@@ -495,14 +529,6 @@
   function settingsSheet() {
     const s = d(), g = s.goals;
     const opt = (v, cur) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>`;
-    const P = AI.prov(), lists = s.ai.lists || {};
-    const models = ((lists[s.ai.provider] || []).length ? lists[s.ai.provider] : P.models).slice();
-    const HINT = {
-      runware: 'Den Key bekommst du auf runware.ai im Dashboard unter „API Keys“. Modelle heißen z. B. openai:gpt@5.4-mini oder google:gemini@3.1-pro.',
-      openai: 'Den Key bekommst du auf platform.openai.com unter „API keys“. „Laden“ holt die Modelle deines Kontos, ein „mini“-Modell ist am günstigsten.',
-      openrouter: 'Den Key bekommst du auf openrouter.ai unter „Keys“. „Laden“ zeigt Modelle, die Bilder und Werkzeuge können.',
-      gemini: 'Den Key bekommst du kostenlos im Google AI Studio (aistudio.google.com) unter „Get API key“. „Flash“-Modelle sind schnell und günstig.'
-    };
     openSheet(`
       <h2>Einstellungen</h2>
       <div class="fields"><div class="field"><label for="s-name">Dein Name</label><input id="s-name" value="${esc(s.profile.name)}" autocomplete="off"></div>
@@ -537,13 +563,9 @@
       <h2>Widgets</h2>
       <div class="muted small">Halte auf dem Homescreen eine freie Stelle gedrückt → + → „Glow Up“. Es gibt Ringe, Heute, Schritte und Woche, auch für den Sperrbildschirm.</div>
 
-      <h2>KI</h2>
-      <div class="field"><label for="s-prov">Anbieter</label><select id="s-prov">${Object.keys(AI.PROVIDERS).map(k => opt(k, s.ai.provider) + esc(AI.PROVIDERS[k].name) + '</option>').join('')}</select></div>
-      <div class="field"><label for="s-key">${esc(P.name)}-API-Key</label><input id="s-key" type="password" value="${esc(s.ai.keys[s.ai.provider] || '')}" placeholder="${esc(P.keyHint || 'API-Key')}" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
-      <div class="field"><label for="s-model">Modell</label><div class="row" style="gap:8px"><input id="s-model" list="s-models" style="flex:1" value="${esc(AI.model())}" autocomplete="off" autocapitalize="off" spellcheck="false">${P.modelsUrl ? '<button class="btn sm ghost" data-a="loadmodels">Laden</button>' : ''}</div>
-        <datalist id="s-models">${models.map(m => `<option value="${esc(m)}">`).join('')}</datalist></div>
-      <div class="note">${HINT[s.ai.provider] || ''} Für den Kalorien-Scanner und Bilder im Coach muss das Modell Bilder verstehen.
-        Der Key wird nur auf diesem Gerät gespeichert und nur an ${esc(P.name)} geschickt. Jede KI-Anfrage kostet dort etwas Guthaben.</div>
+      <h2>KI (Google Gemini)</h2>
+      <div class="field"><label for="s-key">Gemini-API-Key</label><input id="s-key" type="password" value="${esc(s.ai.keys.gemini || '')}" placeholder="AIza…" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="note">Coach und Kalorien-Scanner nutzen <b>gemini-3.8-flash</b>. Den Key bekommst du im Google AI Studio (aistudio.google.com) unter „Get API key“. Er wird nur auf diesem Gerät gespeichert und nur an Google geschickt.</div>
 
       <button class="btn" style="margin-top:18px" data-a="savesettings">Speichern</button>
       <h2>Daten</h2>
@@ -553,16 +575,8 @@
       <div class="muted small" style="text-align:center;margin-top:14px">Glow Up 1.0 · Alle Daten bleiben auf deinem Gerät.</div>`);
   }
 
-  // Key und Modell aus den Einstellungen fuer den gewaehlten Anbieter uebernehmen
-  function keepAi() {
-    const a = d().ai;
-    if ($('#s-key')) a.keys[a.provider] = val('s-key');
-    if ($('#s-model') && val('s-model')) a.model[a.provider] = val('s-model');
-  }
-  document.addEventListener('change', e => {
-    if (e.target.id !== 's-prov') return;
-    keepAi(); d().ai.provider = e.target.value; Store.save(); settingsSheet();
-  });
+  // Gemini-Key aus den Einstellungen uebernehmen
+  function keepAi() { if ($('#s-key')) d().ai.keys.gemini = val('s-key'); }
 
   // ---------- Geruest ----------
   const views = { start: vStart, training: vTraining, essen: vEssen, schritte: vSchritte, coach: vCoach };
@@ -611,6 +625,17 @@
       try { const r = await AI.scanMeal({ text }); mealSheet(r, `<div class="note"><b>KI-Schätzung${r.portion ? ' · ' + esc(r.portion) : ''}</b><br>${esc(r.hinweis || 'Prüfe die Werte kurz.')}</div>`); }
       catch (e) { mealSheet({ name: text }, `<div class="note warn">${esc(e.message)}</div>`); }
     },
+    scanclose() { closeScanner(); },
+    scanretry() { closeScanner(); A.scan(); },
+    scansave() {
+      const r = ui.scan && ui.scan.r; if (!r) return;
+      const day = Store.day(); (d().meals[day] = d().meals[day] || []).push({ id: Store.uid(), name: r.name.slice(0, 60), kcal: r.kcal, p: r.p, c: r.c, f: r.f, slot: slotNow() });
+      Store.save(); closeScanner(); ui.tab = 'essen'; render(); toast('Eingetragen: ' + r.name);
+    },
+    scanedit() {
+      const r = ui.scan && ui.scan.r; if (!r) return;
+      closeScanner(); mealSheet(r, `<div class="note"><b>KI-Schätzung${r.portion ? ' · ' + esc(r.portion) : ''}</b><br>Passe die Werte an und tippe auf Speichern.</div>`);
+    },
     pickfood(ds) { const f = FOODS[+ds.i]; $('#m-name').value = `${f[0]} (${f[1]})`; $('#m-kcal').value = f[2]; $('#m-p').value = f[3]; $('#m-c').value = f[4]; $('#m-f').value = f[5]; },
     savemeal() {
       const name = val('m-name'), kcal = int('m-kcal', 0, 9999, NaN);
@@ -637,21 +662,6 @@
     coachimg() { const inp = $('#coachphoto'); inp.value = ''; inp.click(); },
     coachimgdel() { ui.coachImg = null; render(); },
     askcoach(ds) { if (!AI.hasKey()) { ui.tab = 'coach'; render(); return toast('Erst den ' + AI.prov().name + '-Key eintragen'); } sendChat(ds.q); },
-    async loadmodels(ds, el) {
-      const key = val('s-key'), pv = d().ai.provider;
-      if (!key && pv !== 'openrouter') return toast('Erst den ' + AI.prov().name + '-Key eintragen');
-      el.disabled = true; el.textContent = 'Lädt …';
-      try {
-        const ids = await AI.listModels(pv, key);
-        if (!ids.length) throw new Error('Keine passenden Modelle gefunden.');
-        const inp = $('#s-model'), cur = inp.value;
-        (d().ai.lists = d().ai.lists || {})[pv] = ids.slice(0, 200);
-        $('#s-models').innerHTML = ids.map(m => `<option value="${esc(m)}">`).join('');
-        inp.value = ids.includes(cur) ? cur : AI.pickModel(ids);
-        toast(ids.length + ' Modelle geladen');
-      } catch (e) { toast(e.message); }
-      el.disabled = false; el.textContent = 'Laden';
-    },
     clearchat() { d().chat = []; Store.save(); render(); },
     // Einstellungen
     settings: settingsSheet,

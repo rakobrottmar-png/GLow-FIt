@@ -15,16 +15,12 @@ Alles außer der KI läuft offline. Die Daten bleiben auf dem Gerät.
 
 ## KI einrichten
 
-Start → Zahnrad → **KI**: Anbieter wählen, Key eintragen, Modell wählen („Laden“ holt die Liste, wo der Anbieter eine hat).
+Coach und Kalorien-Scanner nutzen **Google Gemini** (`gemini-3.8-flash`) über Googles OpenAI-kompatible Schnittstelle.
 
-| Anbieter | Key von | Beispiel-Modell |
-|---|---|---|
-| Runware | runware.ai → API Keys | `openai:gpt@5.4-mini` |
-| OpenAI | platform.openai.com → API keys | `gpt-5-mini` |
-| OpenRouter | openrouter.ai → Keys | `openai/gpt-5-mini` |
-| Google Gemini | aistudio.google.com → Get API key | `gemini-2.5-flash` |
+1. Im [Google AI Studio](https://aistudio.google.com) unter „Get API key“ einen Key erstellen.
+2. In der App: Start → Zahnrad → **KI (Google Gemini)** → Key eintragen → Speichern.
 
-Alle vier sprechen das OpenAI-Chat-Format. Jeder Key wird nur auf dem Gerät gespeichert und nur an seinen Anbieter geschickt. Für Kalorien-Scan und Bilder im Coach muss das Modell Bilder verstehen.
+Der Key wird nur auf dem Gerät gespeichert und nur an Google geschickt.
 
 ## Schnittstellen für andere Apps
 
