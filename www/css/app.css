@@ -250,6 +250,22 @@ button.card { display: block; width: 100%; text-align: left; color: inherit; }
 .dots i:nth-child(2) { animation-delay: .18s; } .dots i:nth-child(3) { animation-delay: .36s; }
 @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
 
+/* ---------- Spotify-Leiste ---------- */
+.spbar {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px 8px 8px; border-radius: 22px; text-align: left; color: inherit;
+  background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-edge); box-shadow: var(--glass-hi);
+}
+.spbar img, .splogo { width: 42px; height: 42px; border-radius: 12px; flex: none; object-fit: cover; }
+.splogo { background: radial-gradient(circle at 50% 50%, #1ed760 0 46%, transparent 47%), rgba(30, 215, 96, .14); }
+.spbar .grow { flex: 1; min-width: 0; display: grid; }
+.spbar b, .spbar small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spbar b { font-size: 14.5px; }
+.spbar small { color: var(--muted); font-size: 12.5px; }
+.spbtn { height: 34px; padding: 0 12px; border-radius: 17px; font-size: 13px; font-weight: 750; color: var(--ice); background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .12); flex: none; }
+.spbtn.round { width: 36px; height: 36px; padding: 0; border-radius: 50%; font-size: 13px; }
+.spbtn.main { width: 42px; height: 42px; color: #00131f; background: linear-gradient(180deg, #a6e0ff, #5fc0ff); border-color: rgba(255, 255, 255, .5); }
+
 #toast {
   position: fixed; left: 50%; bottom: calc(var(--sab) + 100px); transform: translateX(-50%); z-index: 40;
   color: var(--text); font-weight: 750; font-size: 14.5px; padding: 11px 18px; border-radius: 99px; max-width: 88%; text-align: center;

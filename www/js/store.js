@@ -6,6 +6,8 @@ const Store = (() => {
     profile: { name: '', weight: 70 },
     goals: { kcal: 2400, protein: 130, steps: 8000, water: 2500, trainMin: 30, perWeek: 3 },
     ai: { key: '', model: 'anthropic/claude-sonnet-5.5' },
+    spotify: { clientId: '' },                     // + access, refresh, expires nach dem Login
+    calendar: { id: '', title: '', time: '17:00', eventIds: [] },
     plans: JSON.parse(JSON.stringify(DEFAULT_PLANS)),
     schedule: Object.assign({}, DEFAULT_SCHEDULE),
     customEx: {},        // id -> { name, muskeln, tipp, anim }
@@ -22,9 +24,12 @@ const Store = (() => {
   let d;
   try { d = Object.assign(fresh(), JSON.parse(localStorage.getItem(KEY) || '{}')); }
   catch (e) { d = fresh(); }
-  for (const k of ['profile', 'goals', 'ai']) d[k] = Object.assign(fresh()[k], d[k]);
+  for (const k of ['profile', 'goals', 'ai', 'spotify', 'calendar']) d[k] = Object.assign(fresh()[k], d[k]);
 
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { /* Speicher voll oder gesperrt */ } };
+  const save = () => {
+    try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { /* Speicher voll oder gesperrt */ }
+    if (typeof Widget !== 'undefined') Widget.update();
+  };
   const day = (dt = new Date()) => {
     const z = n => String(n).padStart(2, '0');
     return `${dt.getFullYear()}-${z(dt.getMonth() + 1)}-${z(dt.getDate())}`;

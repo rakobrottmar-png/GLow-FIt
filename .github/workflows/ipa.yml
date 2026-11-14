@@ -32,6 +32,11 @@ jobs:
       - name: Web-App ins iOS-Projekt kopieren
         run: npx cap sync ios
 
+      - name: Widget-Ziel ins Xcode-Projekt eintragen
+        run: |
+          gem list -i xcodeproj >/dev/null || sudo gem install xcodeproj --no-document
+          ruby scripts/add-widget.rb
+
       - name: App bauen (ohne Signatur)
         working-directory: ios/App
         run: |
@@ -48,6 +53,12 @@ jobs:
         run: |
           APP="$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/App.app"
           test -d "$APP"
+          ls "$APP/PlugIns"
+          # Ad-hoc signieren, damit die App-Group-Berechtigung in der IPA steht.
+          # Der Sideloader signiert danach mit deiner Apple-ID neu.
+          codesign -f -s - --entitlements ios/App/GlowUpWidget/GlowUpWidget.entitlements "$APP/PlugIns/GlowUpWidget.appex"
+          codesign -f -s - --entitlements ios/App/App/App.entitlements "$APP"
+          codesign -d --entitlements - "$APP" || true
           mkdir -p Payload
           cp -R "$APP" Payload/
           zip -qry GlowUp.ipa Payload

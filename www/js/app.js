@@ -127,6 +127,7 @@
     }
     return `
     <div class="head"><div><div class="eyebrow">Zu Hause · ohne Geräte</div><h1>Training</h1></div></div>
+    <div class="spslot" style="margin-bottom:14px">${Spotify.bar()}</div>
     <div class="seg">${[['kraft', 'Kraft'], ['dehnen', 'Dehnen'], ['verlauf', 'Verlauf']].map(([k, n]) => `<button class="${seg === k ? 'on' : ''}" data-a="seg" data-seg="${k}">${n}</button>`).join('')}</div>
     ${body}`;
   }
@@ -160,16 +161,41 @@
   // ---------- Player ----------
   let P = null, tick = null, audio = null, wake = null;
 
-  function beep(freq = 880, ms = 140) {
+  // iOS spielt Web-Audio erst nach einer Beruehrung ab. Deshalb beim ersten Tippen freischalten.
+  function unlockAudio() {
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = 'transient'; // Musik kurz leiser statt stoppen
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      if (audio.state === 'suspended') audio.resume();
+      const b = audio.createBuffer(1, 1, 22050), s = audio.createBufferSource();
+      s.buffer = b; s.connect(audio.destination); s.start(0);
+    } catch (e) { /* kein Ton verfuegbar */ }
+  }
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
+
+  function beep(freq = 880, ms = 140, at = 0, vol = .25) {
     try {
       audio = audio || new (window.AudioContext || window.webkitAudioContext)();
       if (audio.state === 'suspended') audio.resume();
-      const o = audio.createOscillator(), g = audio.createGain();
-      o.frequency.value = freq; o.connect(g); g.connect(audio.destination);
-      g.gain.setValueAtTime(.18, audio.currentTime); g.gain.exponentialRampToValueAtTime(.001, audio.currentTime + ms / 1000);
-      o.start(); o.stop(audio.currentTime + ms / 1000);
+      const o = audio.createOscillator(), g = audio.createGain(), t0 = audio.currentTime + at;
+      o.type = 'square'; o.frequency.value = freq; o.connect(g); g.connect(audio.destination);
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(.0001, t0 + ms / 1000);
+      o.start(t0); o.stop(t0 + ms / 1000 + 0.02);
     } catch (e) { /* kein Ton verfuegbar */ }
   }
+  // Deutlicher Abschluss-Ton: drei kurze Pieptoene plus Vibration
+  function alarm() { beep(1175, 160, 0); beep(1175, 160, .22); beep(1568, 380, .44); Native.haptic('HEAVY'); }
+
+  // Laeuft die App im Hintergrund, piept iOS ueber eine Mitteilung, wenn der Timer abgelaufen ist.
+  const ALARM_ID = 7001;
+  function scheduleAlarm() {
+    if (!P || !P.running || !Native.isNative()) return;
+    const title = P.phase === 'rest' ? 'Pause vorbei' : 'Zeit um';
+    const next = P.phase === 'rest' && P.steps[P.i + 1] ? Store.exercise(P.steps[P.i + 1].it.ex).name : Store.exercise(P.steps[P.i].it.ex).name;
+    Native.call('LocalNotifications', 'schedule', { notifications: [{ id: ALARM_ID, title, body: (P.phase === 'rest' ? 'Weiter mit: ' : '') + next, schedule: { at: new Date(P.endAt).toISOString() } }] }).catch(() => {});
+  }
+  const cancelAlarm = () => { if (Native.isNative()) Native.call('LocalNotifications', 'cancel', { notifications: [{ id: ALARM_ID }] }).catch(() => {}); };
 
   function startPlan(id) {
     const plan = Store.plan(id); if (!plan || !plan.items.length) return;
@@ -179,11 +205,14 @@
       for (let s = 1; s <= it.sets; s++) for (let k = 1; k <= sides; k++) steps.push({ it, idx, set: s, side: sides === 2 ? k : 0 });
     });
     P = { plan, steps, i: 0, phase: 'work', running: false, endAt: 0, left: 0, started: Date.now(), sets: 0, reps: 0 };
-    closeSheet(); playerEl.hidden = false; beep(660, 60);
+    closeSheet(); playerEl.hidden = false; unlockAudio(); beep(660, 60);
     if (navigator.wakeLock) navigator.wakeLock.request('screen').then(w => wake = w).catch(() => {});
+    if (Native.isNative()) Native.call('LocalNotifications', 'requestPermissions').catch(() => {});
     enterWork();
     clearInterval(tick); tick = setInterval(onTick, 200);
+    clearInterval(spTick); Spotify.refresh(); spTick = setInterval(() => { if (Native.active) Spotify.refresh(); }, 5000);
   }
+  let spTick = null;
 
   function repsDefault(it) {
     const last = d().lastReps[it.ex]; if (last) return last;
@@ -218,7 +247,7 @@
     if (rg) rg.setAttribute('stroke-dasharray', `${(565.5 * (left / P.total)).toFixed(1)} 565.5`);
     if (whole <= 3 && whole > 0 && whole !== P.lastBeep) { P.lastBeep = whole; beep(700, 90); }
     if (left <= 0) {
-      P.running = false; beep(1050, 320);
+      P.running = false; cancelAlarm(); alarm();
       if (P.phase === 'rest') { P.i++; enterWork(); } else workDone();
     }
   }
@@ -227,7 +256,8 @@
     const st = P.steps[P.i], it = st.it, ex = Store.exercise(it.ex);
     const prog = P.i / P.steps.length;
     const top = `<div class="ptop"><button class="iconbtn" data-a="pquit" aria-label="Beenden"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      <div class="bar"><i style="width:${prog * 100}%"></i></div><span class="muted small num">${P.i + 1}/${P.steps.length}</span></div>`;
+      <div class="bar"><i style="width:${prog * 100}%"></i></div><span class="muted small num">${P.i + 1}/${P.steps.length}</span></div>
+      <div class="spslot" style="margin-top:10px">${Spotify.bar()}</div>`;
     const ringSvg = (color) => `<div class="restring"><svg viewBox="0 0 210 210"><circle cx="105" cy="105" r="90" stroke="${color}" opacity=".16"/><circle id="pring" cx="105" cy="105" r="90" stroke="${color}" stroke-dasharray="565.5 565.5"/></svg>
       <div class="mid"><div class="count" id="pcount">${Math.ceil(P.running ? (P.endAt - Date.now()) / 1000 : P.left)}</div><div class="muted small">Sekunden</div></div></div>`;
 
@@ -265,7 +295,7 @@
     const met = P.plan.type === 'kraft' ? 5 : 2.5;
     const kcal = Math.round(met * (d().profile.weight || 70) * min / 60);
     d().history.push({ date: Store.day(), ts: Date.now(), planId: P.plan.id, name: P.plan.name, type: P.plan.type, min, kcal, sets: P.sets });
-    Store.save(); beep(880, 120); setTimeout(() => beep(1320, 380), 160);
+    Store.save(); clearInterval(spTick); cancelAlarm(); beep(880, 120); beep(1320, 380, .16); Native.haptic('MEDIUM');
     const kraft = P.plan.type === 'kraft';
     playerEl.innerHTML = `<div class="pbody">
       <div><span class="eyebrow accent">Geschafft</span><h1 style="font-size:36px;margin-top:6px">${esc(P.plan.name)}</h1></div>
@@ -282,7 +312,7 @@
   }
 
   function closePlayer() {
-    clearInterval(tick); P = null; playerEl.hidden = true; playerEl.innerHTML = '';
+    clearInterval(tick); clearInterval(spTick); cancelAlarm(); P = null; playerEl.hidden = true; playerEl.innerHTML = '';
     if (wake) { wake.release().catch(() => {}); wake = null; }
     render();
   }
@@ -436,7 +466,10 @@
     if (ui.tab !== 'coach') { ui.tab = 'coach'; } render(); scrollEnd();
     try {
       const tools = [];
-      const answer = await AI.coach(d().chat.filter(m => m.role !== 'tool'), name => tools.push(TOOLNAMES[name] || name));
+      const answer = await AI.coach(d().chat.filter(m => m.role !== 'tool'), name => {
+        tools.push(TOOLNAMES[name] || name);
+        if (/plan|schedule/.test(name)) Calendar.syncSoon();
+      });
       if (tools.length) d().chat.push({ role: 'tool', text: [...new Set(tools)].join(' · ') });
       d().chat.push({ role: 'assistant', text: answer });
     } catch (e) { d().chat.push({ role: 'assistant', text: '⚠️ ' + e.message }); }
@@ -467,6 +500,23 @@
       <h2>Wochenplan</h2>
       <div class="fields">${[1, 2, 3, 4, 5, 6, 0].map(i => `<div class="field"><label for="s-d${i}">${['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'][i]}</label>
         <select id="s-d${i}"><option value="">Pause</option>${s.plans.map(p => opt(p.id, s.schedule[i]) + esc(p.name) + '</option>').join('')}</select></div>`).join('')}</div>
+
+      <h2>Spotify</h2>
+      <div class="field"><label for="s-spid">Spotify Client ID</label><input id="s-spid" value="${esc(s.spotify.clientId)}" placeholder="aus dem Spotify Developer Dashboard" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="note">Einmalig: Auf developer.spotify.com eine App anlegen, als Redirect URI <b>${Spotify.REDIRECT}</b> eintragen und „Web API“ anhaken. Steuern geht nur mit Spotify Premium.</div>
+      <div class="btns" style="margin-top:12px">${Spotify.connected()
+        ? `<span class="pill" style="align-self:center">✓ Verbunden</span><button class="btn sm ghost" data-a="spdisconnect">Trennen</button>`
+        : `<button class="btn sm soft" data-a="spconnect">Mit Spotify verbinden</button>`}</div>
+
+      <h2>Kalender</h2>
+      <div class="muted small">Dein Training erscheint als wöchentlicher Termin. Für Google Kalender: Füge dein Google-Konto auf dem iPhone unter Einstellungen → Kalender → Accounts hinzu und wähle hier den Google-Kalender.</div>
+      <div class="fields"><div class="field"><label>Kalender</label><button class="btn sm ghost" style="width:100%;justify-content:flex-start;overflow:hidden" data-a="calpick">${s.calendar.id ? esc(s.calendar.title) : 'Kalender wählen'}</button></div>
+        <div class="field"><label for="s-caltime">Uhrzeit Training</label><input id="s-caltime" type="time" value="${esc(s.calendar.time)}"></div></div>
+      ${s.calendar.id ? `<div class="btns" style="margin-top:12px"><button class="btn sm soft" data-a="calsync">Jetzt eintragen</button><button class="btn sm ghost" data-a="calremove">Termine entfernen</button></div>
+        <div class="muted small" style="margin-top:6px">${s.calendar.synced ? 'Zuletzt eingetragen: ' + new Date(s.calendar.synced).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) + ' · ' + (s.calendar.eventIds || []).length + ' Serientermine' : 'Noch nicht eingetragen'}</div>` : ''}
+
+      <h2>Widgets</h2>
+      <div class="muted small">Halte auf dem Homescreen eine freie Stelle gedrückt → + → „Glow Up“. Es gibt Ringe, Heute, Schritte und Woche, auch für den Sperrbildschirm.</div>
 
       <h2>KI (OpenRouter)</h2>
       <div class="field"><label for="s-key">OpenRouter-Key</label><input id="s-key" type="password" value="${esc(s.ai.key)}" placeholder="sk-or-…" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
@@ -503,7 +553,7 @@
       if (ui.confirm !== ds.id) { ui.confirm = ds.id; return toast('Nochmal tippen, um den Plan zu löschen'); }
       d().plans = d().plans.filter(p => p.id !== ds.id);
       for (const k in d().schedule) if (d().schedule[k] === ds.id) delete d().schedule[k];
-      Store.save(); closeSheet(); render(); toast('Plan gelöscht');
+      Store.save(); Calendar.syncSoon(); closeSheet(); render(); toast('Plan gelöscht');
     },
     // Player
     pquit() { if (ui.quit && Date.now() - ui.quit < 3000) { ui.quit = 0; return closePlayer(); } ui.quit = Date.now(); toast('Nochmal tippen, um das Training abzubrechen'); },
@@ -555,8 +605,36 @@
       g.water = int('s-water', 500, 6000, g.water); g.trainMin = int('s-min', 5, 180, g.trainMin); g.perWeek = int('s-week', 1, 7, g.perWeek);
       for (let i = 0; i < 7; i++) { const v = val('s-d' + i); if (v) s.schedule[i] = v; else delete s.schedule[i]; }
       s.ai.key = val('s-key'); s.ai.model = val('s-model') || s.ai.model;
-      Store.save(); closeSheet(); render(); toast('Gespeichert');
+      s.spotify.clientId = val('s-spid');
+      if (/^\d\d:\d\d$/.test(val('s-caltime'))) s.calendar.time = val('s-caltime');
+      Store.save(); Calendar.syncSoon(); closeSheet(); render(); toast('Gespeichert');
     },
+    // Spotify
+    sp(ds) { Spotify.cmd(ds.cmd); Native.haptic('LIGHT'); },
+    spopen() { Spotify.openApp(); },
+    async spconnect() {
+      d().spotify.clientId = val('s-spid'); Store.save();
+      try { await Spotify.login(); } catch (e) { toast(e.message); }
+    },
+    spdisconnect() { Spotify.disconnect(); settingsSheet(); toast('Spotify getrennt'); },
+    // Kalender
+    async calpick() {
+      if (!Native.isNative()) return toast('Nur auf dem iPhone verfügbar');
+      try {
+        const cals = await Calendar.list();
+        openSheet(`<h2>Kalender wählen</h2><div class="muted small" style="margin-bottom:12px">Google-Kalender stehen oben. Fehlt er, füge dein Google-Konto in den iPhone-Einstellungen unter Kalender → Accounts hinzu.</div>
+          <div class="list">${cals.map(k => `<button class="item" data-a="calchoose" data-id="${esc(k.id)}" data-title="${esc(k.title)}"><div class="grow"><h3>${esc(k.title)}</h3><div class="muted small">${esc(k.source)}</div></div><span class="chev">›</span></button>`).join('') || '<div class="muted">Keine Kalender gefunden.</div>'}</div>`);
+      } catch (e) { toast(e.message); }
+    },
+    async calchoose(ds) {
+      const c = d().calendar;
+      if (c.eventIds && c.eventIds.length) await Calendar.removeAll();
+      c.id = ds.id; c.title = ds.title; Store.save();
+      try { const n = await Calendar.sync(); toast(n + ' Trainingstage eingetragen'); } catch (e) { toast(e.message); }
+      settingsSheet();
+    },
+    async calsync() { try { const n = await Calendar.sync(); toast(n + ' Trainingstage eingetragen'); settingsSheet(); } catch (e) { toast(e.message); } },
+    async calremove() { await Calendar.removeAll(); d().calendar.id = ''; d().calendar.title = ''; Store.save(); settingsSheet(); toast('Termine entfernt'); },
     reset() {
       if (!ui.resetArmed) { ui.resetArmed = true; return toast('Nochmal tippen: Alles wird gelöscht'); }
       ui.resetArmed = false; Store.reset(); closeSheet(); ui.tab = 'start'; render(); toast('Alle Daten gelöscht');
@@ -574,6 +652,31 @@
   $('#photo').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (f) scanPhoto(f); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { syncSteps(false); if (!P && sheet.hidden) render(); } });
 
+  // Spotify-Leisten aktualisieren, ohne die ganze Seite neu zu zeichnen
+  Spotify.onChange = () => document.querySelectorAll('.spslot').forEach(el => el.innerHTML = Spotify.bar());
+
+  // Links in die App: Spotify-Anmeldung und Widgets (glowup://start/tag-a, glowup://tab/schritte)
+  Native.listen('App', 'appUrlOpen', async ({ url }) => {
+    if (!url) return;
+    if (url.startsWith(Spotify.REDIRECT)) {
+      try { await Spotify.handleRedirect(url); toast('Spotify verbunden'); Spotify.refresh(); if (!sheet.hidden) settingsSheet(); }
+      catch (e) { toast(e.message); }
+      return;
+    }
+    const m = url.match(/^glowup:\/\/(start|tab)\/([\w-]+)/);
+    if (!m) return;
+    if (m[1] === 'start' && Store.plan(m[2]) && !P) startPlan(m[2]);
+    if (m[1] === 'tab' && views[m[2]]) { closeSheet(); ui.tab = m[2]; render(); }
+  });
+
+  // Hintergrund: Timer-Alarm als Mitteilung planen. Vordergrund: wieder abbrechen, Daten auffrischen.
+  Native.listen('App', 'appStateChange', ({ isActive }) => {
+    if (isActive) { cancelAlarm(); Widget.update(); if (P) Spotify.refresh(); }
+    else scheduleAlarm();
+  });
+
   render();
   syncSteps(false);
+  Widget.update();
+  if (Spotify.connected()) Spotify.refresh();
 })();
