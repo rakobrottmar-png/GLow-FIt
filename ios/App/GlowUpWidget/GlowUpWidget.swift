@@ -369,7 +369,7 @@ struct WocheView: View {
                                 Text(w.d).font(.caption2.weight(.bold)).foregroundColor(w.date == todayKey ? .white : Theme.muted)
                                 ZStack {
                                     if w.done {
-                                        Circle().fill(LinearGradient(colors: [Theme.ice, Theme.accent], startPoint: .top, endPoint: .bottom))
+                                        Circle().fill(Theme.accent)
                                         Text("✓").font(.caption.weight(.heavy)).foregroundColor(.black)
                                     } else if !w.plan.isEmpty {
                                         Circle().stroke(Theme.accent, lineWidth: 2)
