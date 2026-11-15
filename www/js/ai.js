@@ -1,12 +1,19 @@
-// KI ueber Google Gemini (gemini-3.8-flash, OpenAI-kompatible Schnittstelle von Google):
+// KI ueber OpenRouter (ein Key, viele Modelle):
 // Kalorien-Scanner und der Coach, der Dinge in der App anlegen kann.
 const AI = (() => {
-  const P = { name: 'Google Gemini', url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', site: 'aistudio.google.com' };
-  const MODEL = 'gemini-3.8-flash';
-  const key = () => ((Store.d.ai.keys || {}).gemini || '').trim();
+  const P = { name: 'OpenRouter', url: 'https://openrouter.ai/api/v1/chat/completions', site: 'openrouter.ai' };
+  // Schnelle Modelle, die Fotos verstehen und Werkzeuge benutzen koennen
+  const MODELS = [
+    { id: 'google/gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite (schnell, empfohlen)' },
+    { id: 'anthropic/claude-haiku-5.5', label: 'Claude Haiku 5.5 (schnell, günstig)' },
+    { id: 'google/gemini-3.8-flash', label: 'Gemini 3.8 Flash (genauer, langsamer)' }
+  ];
+  const DEFAULT = MODELS[0].id;
+  const key = () => ((Store.d.ai.keys || {}).openrouter || '').trim();
   const hasKey = () => !!key();
   const prov = () => P;
-  const model = () => MODEL;
+  const model = () => (Store.d.ai.model || DEFAULT).trim();
+  const short = () => { const m = model(); return m.slice(m.indexOf('/') + 1); };
 
   // Auf dem iPhone ueber die native HTTP-Schnittstelle (keine CORS-Probleme), im Browser per fetch
   async function get(url, auth) {
@@ -22,33 +29,35 @@ const AI = (() => {
   }
 
   async function post(url, auth, body) {
+    const headers = { Authorization: 'Bearer ' + auth, 'Content-Type': 'application/json', 'X-Title': 'Glow Up' };
     if (Native.isNative()) {
-      const r = await Native.call('CapacitorHttp', 'request', { url, method: 'POST', headers: { Authorization: 'Bearer ' + auth, 'Content-Type': 'application/json' }, data: body });
+      const r = await Native.call('CapacitorHttp', 'request', { url, method: 'POST', headers, data: body });
       let json = r.data;
       if (typeof json === 'string') { try { json = JSON.parse(json); } catch (e) { json = null; } }
       return { ok: r.status >= 200 && r.status < 300, status: r.status, json };
     }
-    const res = await fetch(url, { method: 'POST', headers: { Authorization: 'Bearer ' + auth, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
     return { ok: res.ok, status: res.status, json: await res.json().catch(() => null) };
   }
 
   async function call(body) {
-    if (!hasKey()) throw new Error('Kein Gemini-Key eingetragen. Öffne die Einstellungen (Zahnrad auf der Startseite).');
+    if (!hasKey()) throw new Error('Kein OpenRouter-Key eingetragen. Öffne die Einstellungen (Zahnrad auf der Startseite).');
     if (!navigator.onLine) throw new Error('Keine Internetverbindung. Die KI braucht Internet, alles andere geht offline.');
-    // Wenig "Nachdenken": schneller und guenstiger, reicht fuer Coach und Scan
-    const req = Object.assign({ model: MODEL, reasoning_effort: 'low' }, body);
+    // Wenig "Nachdenken" und schnellster Anbieter: kuerzere Wartezeit
+    // (Claude denkt ohne reasoning-Angabe gar nicht nach, Gemini nur wenig)
+    const req = Object.assign({ model: model(), provider: { sort: 'latency' } }, /^google\//.test(model()) ? { reasoning: { effort: 'low' } } : {}, body);
     let res;
     try { res = await post(P.url, key(), req); }
-    catch (e) { throw new Error('Google Gemini ist nicht erreichbar. Prüfe deine Internetverbindung.'); }
-    const json = res.json;
-    const j0 = Array.isArray(json) ? json[0] : json;
-    if (!res.ok || !j0 || j0.error || !j0.choices) {
+    catch (e) { throw new Error('OpenRouter ist nicht erreichbar. Prüfe deine Internetverbindung.'); }
+    const j0 = res.json;
+    if (!res.ok || !j0 || j0.error || !j0.choices || !j0.choices.length) {
       const err = j0 && j0.error;
       const msg = err && (err.message || (typeof err === 'string' ? err : ''));
-      if (res.status === 400 && /api key/i.test(msg || '')) throw new Error('Der Gemini-Key ist ungültig. Prüfe ihn in den Einstellungen.');
-      if (res.status === 401 || res.status === 403) throw new Error('Der Gemini-Key wurde abgelehnt. Prüfe ihn in den Einstellungen.');
-      if (res.status === 429) throw new Error('Gemini: Zu viele Anfragen oder Kontingent aufgebraucht. Warte kurz und versuch es nochmal.');
-      throw new Error(msg ? 'Gemini: ' + msg : ('Fehler von Gemini (' + res.status + ').'));
+      if (res.status === 401) throw new Error('Der OpenRouter-Key ist ungültig. Prüfe ihn in den Einstellungen.');
+      if (res.status === 402) throw new Error('Dein OpenRouter-Guthaben ist leer. Lade auf openrouter.ai Guthaben auf.');
+      if (res.status === 404) throw new Error('Das Modell "' + model() + '" gibt es bei OpenRouter nicht. Wähle in den Einstellungen ein anderes.');
+      if (res.status === 429) throw new Error('OpenRouter: Zu viele Anfragen. Warte kurz und versuch es nochmal.');
+      throw new Error(msg ? 'OpenRouter: ' + msg : ('Fehler von OpenRouter (' + res.status + ').'));
     }
     return j0.choices[0].message;
   }
@@ -73,7 +82,7 @@ const AI = (() => {
   }
 
   // Foto verkleinern, damit der Upload klein und guenstig bleibt
-  function shrink(file, max = 1024) {
+  function shrink(file, max = 768) {
     return new Promise((ok, fail) => {
       const img = new Image();
       img.onload = () => {
@@ -82,7 +91,7 @@ const AI = (() => {
         c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
         URL_.revokeObjectURL(img.src);
-        ok(c.toDataURL('image/jpeg', 0.8));
+        ok(c.toDataURL('image/jpeg', 0.75));
       };
       img.onerror = () => fail(new Error('Das Foto konnte nicht gelesen werden.'));
       img.src = URL_.createObjectURL(file);
@@ -245,5 +254,5 @@ Nutze nur diese IDs. Fehlt eine Übung, lege sie zuerst mit create_exercise an u
     return 'Ich habe mehrere Schritte ausgeführt. Schau bitte kurz nach, ob alles passt.';
   }
 
-  return { prov, model, hasKey, scanMeal, shrink, coach };
+  return { prov, model, short, MODELS, hasKey, scanMeal, shrink, coach };
 })();

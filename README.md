@@ -15,12 +15,12 @@ Alles außer der KI läuft offline. Die Daten bleiben auf dem Gerät.
 
 ## KI einrichten
 
-Coach und Kalorien-Scanner nutzen **Google Gemini** (`gemini-3.8-flash`) über Googles OpenAI-kompatible Schnittstelle.
+Coach und Kalorien-Scanner laufen über **[OpenRouter](https://openrouter.ai)**. Standard ist `google/gemini-3.5-flash-lite` (schnell, versteht Fotos). In den Einstellungen lässt sich auch `anthropic/claude-haiku-5.5`, `google/gemini-3.8-flash` oder jede andere Modell-ID von OpenRouter wählen.
 
-1. Im [Google AI Studio](https://aistudio.google.com) unter „Get API key“ einen Key erstellen.
-2. In der App: Start → Zahnrad → **KI (Google Gemini)** → Key eintragen → Speichern.
+1. Auf openrouter.ai etwas Guthaben aufladen und unter „Keys“ → „Create Key“ einen Key erstellen.
+2. In der App: Start → Zahnrad → **KI (OpenRouter)** → Key eintragen, Modell wählen → Speichern.
 
-Der Key wird nur auf dem Gerät gespeichert und nur an Google geschickt.
+Der Key wird nur auf dem Gerät gespeichert und nur an OpenRouter geschickt.
 
 ## Schnittstellen für andere Apps
 

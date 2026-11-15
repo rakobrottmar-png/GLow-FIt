@@ -5,7 +5,7 @@ const Store = (() => {
   const fresh = () => ({
     profile: { name: '', weight: 70 },
     goals: { kcal: 2400, protein: 130, steps: 8000, water: 2500, trainMin: 30, perWeek: 3 },
-    ai: { provider: 'gemini', keys: { gemini: '' } },  // nur Google Gemini (gemini-3.8-flash)
+    ai: { provider: 'openrouter', keys: { openrouter: '' }, model: 'google/gemini-3.5-flash-lite' },  // KI ueber OpenRouter
     spotify: { clientId: '' },                     // + access, refresh, expires nach dem Login
     calendar: { id: '', title: '', time: '17:00', eventIds: [] },
     plans: JSON.parse(JSON.stringify(DEFAULT_PLANS)),
@@ -27,8 +27,11 @@ const Store = (() => {
   for (const k of ['profile', 'goals', 'ai', 'spotify', 'calendar']) d[k] = Object.assign(fresh()[k], d[k]);
   // Neue Standardplaene aus Updates ergaenzen (eigene Aenderungen bleiben)
   for (const p of DEFAULT_PLANS) if (!d.plans.some(x => x.id === p.id)) d.plans.push(JSON.parse(JSON.stringify(p)));
-  // Nur noch Gemini: vorhandenen Gemini-Key behalten, alles andere verwerfen
-  d.ai = { provider: 'gemini', keys: { gemini: (d.ai && d.ai.keys && d.ai.keys.gemini) || '' } };
+  // KI nur noch ueber OpenRouter: vorhandenen OpenRouter-Key und Modell behalten
+  {
+    const a = d.ai || {}, k = a.keys || {};
+    d.ai = { provider: 'openrouter', keys: { openrouter: k.openrouter || '' }, model: (a.provider === 'openrouter' && a.model) || 'google/gemini-3.5-flash-lite' };
+  }
 
 
   const save = () => {

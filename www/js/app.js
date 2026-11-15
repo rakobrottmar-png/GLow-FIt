@@ -381,7 +381,7 @@
     const photo = `<div class="scan${state === 'busy' ? '' : ' done'}"><img src="${img}" alt="Foto deines Essens">${state === 'busy' ? '<span class="beam"></span>' : ''}<i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i><i class="corner c4"></i></div>`;
     let body;
     if (state === 'busy') {
-      body = `<div class="scanmsg"><h2>Scannt …</h2><div class="muted small">Gemini erkennt dein Essen und schätzt die Nährwerte.</div></div>`;
+      body = `<div class="scanmsg"><h2>Scannt …</h2><div class="muted small">Die KI erkennt dein Essen und schätzt die Nährwerte.</div></div>`;
     } else if (state === 'error') {
       body = `<div class="scanmsg"><h2>Das hat nicht geklappt</h2><div class="note warn">${esc(err)}</div></div>
         <div class="btns"><button class="btn ghost" data-a="scanclose">Schließen</button><button class="btn" data-a="scanretry">Neues Foto</button></div>`;
@@ -492,7 +492,7 @@
     const chat = d().chat, hasKey = AI.hasKey();
     const chips = ['Mach Tag A etwas schwerer', 'Bau mir einen 10-Minuten-Bauchplan', 'Was soll ich heute noch essen?', 'Stell mein Kalorienziel auf Muskelaufbau ein', 'Erstelle eine Dehnroutine für den Rücken'];
     return `
-    <div class="head"><div><div class="eyebrow">KI · ${esc(AI.prov().name)} · ${esc(AI.model())}</div><h1>Coach</h1></div>${chat.length ? '<button class="btn sm ghost" data-a="clearchat">Leeren</button>' : ''}</div>
+    <div class="head"><div><div class="eyebrow">KI · ${esc(AI.short())}</div><h1>Coach</h1></div>${chat.length ? '<button class="btn sm ghost" data-a="clearchat">Leeren</button>' : ''}</div>
     ${hasKey ? '' : `<div class="card"><h3>${esc(AI.prov().name)}-Key fehlt</h3><div class="muted small" style="margin:6px 0 12px">Der Coach und der Kalorien-Scanner brauchen deinen eigenen ${esc(AI.prov().name)}-API-Key. Er bleibt nur auf diesem Gerät gespeichert.</div><button class="btn" data-a="settings">Key eintragen</button></div>`}
     ${chat.length ? '' : `<div class="card" style="margin-top:12px"><h3>Ich kann Dinge in der App für dich bauen</h3><div class="muted small" style="margin-top:6px">Zum Beispiel neue Trainingspläne und Dehnroutinen anlegen, Pläne schwerer machen, deinen Wochenplan und deine Ziele ändern oder Mahlzeiten eintragen. Sag einfach, was du willst.</div></div>`}
     <div class="chat" style="margin-top:12px">${chat.map(m => `<div class="msg ${m.role}${m.err ? ' err' : ''}">${m.role === 'tool' ? Ic('spark') : ''}${m.err ? Ic('warn') + ' ' : ''}${m.image ? `<img class="chatimg" src="${m.image}" alt="Bild">` : ''}${esc(m.text)}</div>`).join('')}${ui.chatBusy ? '<div class="msg assistant"><span class="dots"><i></i><i></i><i></i></span></div>' : ''}</div>
@@ -563,9 +563,11 @@
       <h2>Widgets</h2>
       <div class="muted small">Halte auf dem Homescreen eine freie Stelle gedrückt → + → „Glow Up“. Es gibt Ringe, Heute, Schritte und Woche, auch für den Sperrbildschirm.</div>
 
-      <h2>KI (Google Gemini)</h2>
-      <div class="field"><label for="s-key">Gemini-API-Key</label><input id="s-key" type="password" value="${esc(s.ai.keys.gemini || '')}" placeholder="AIza…" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
-      <div class="note">Coach und Kalorien-Scanner nutzen <b>gemini-3.8-flash</b>. Den Key bekommst du im Google AI Studio (aistudio.google.com) unter „Get API key“. Er wird nur auf diesem Gerät gespeichert und nur an Google geschickt.</div>
+      <h2>KI (OpenRouter)</h2>
+      <div class="field"><label for="s-key">OpenRouter-API-Key</label><input id="s-key" type="password" value="${esc(s.ai.keys.openrouter || '')}" placeholder="sk-or-…" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="field" style="margin-top:10px"><label for="s-model">Modell</label><select id="s-model">${AI.MODELS.map(m => `<option value="${esc(m.id)}"${m.id === AI.model() ? ' selected' : ''}>${esc(m.label)}</option>`).join('')}${AI.MODELS.some(m => m.id === AI.model()) ? '' : `<option value="${esc(AI.model())}" selected>${esc(AI.model())}</option>`}<option value="__own">Eigenes Modell …</option></select></div>
+      <div class="field" id="s-ownwrap" style="margin-top:10px;display:none"><label for="s-own">Modell-ID von openrouter.ai</label><input id="s-own" placeholder="z. B. google/gemini-3.5-flash-lite" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="note">Coach und Kalorien-Scanner laufen über OpenRouter. Den Key bekommst du auf openrouter.ai unter „Keys“ → „Create Key“ (vorher etwas Guthaben aufladen). Er wird nur auf diesem Gerät gespeichert und nur an OpenRouter geschickt.</div>
 
       <button class="btn" style="margin-top:18px" data-a="savesettings">Speichern</button>
       <h2>Daten</h2>
@@ -575,8 +577,14 @@
       <div class="muted small" style="text-align:center;margin-top:14px">Glow Up 1.0 · Alle Daten bleiben auf deinem Gerät.</div>`);
   }
 
-  // Gemini-Key aus den Einstellungen uebernehmen
-  function keepAi() { if ($('#s-key')) d().ai.keys.gemini = val('s-key'); }
+  // OpenRouter-Key und Modell aus den Einstellungen uebernehmen
+  function keepAi() {
+    if (!$('#s-key')) return;
+    d().ai.keys.openrouter = val('s-key');
+    const m = val('s-model'), own = ($('#s-own') ? val('s-own') : '').trim();
+    if (m === '__own') { if (own) d().ai.model = own; }
+    else if (m) d().ai.model = m;
+  }
 
   // ---------- Geruest ----------
   const views = { start: vStart, training: vTraining, essen: vEssen, schritte: vSchritte, coach: vCoach };
@@ -732,6 +740,10 @@
   });
   document.addEventListener('keydown', e => {
     if (e.target.id === 'c-text' && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); A.send(); }
+  });
+  // "Eigenes Modell" zeigt das Eingabefeld fuer die Modell-ID
+  document.addEventListener('change', e => {
+    if (e.target && e.target.id === 's-model' && $('#s-ownwrap')) $('#s-ownwrap').style.display = e.target.value === '__own' ? '' : 'none';
   });
   $('#photo').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (f) scanPhoto(f); });
   $('#coachphoto').addEventListener('change', async e => {
