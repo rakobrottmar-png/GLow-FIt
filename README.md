@@ -38,6 +38,8 @@ Glow Up ist so gebaut, dass andere Apps und iOS-Kurzbefehle Daten eintragen und 
 | `glowup://log/steps?n=3000` | Schritte für heute ergänzen |
 | `glowup://coach?q=Text` | Frage an den Coach |
 
+**Blick (PC-Browser):** Unter Einstellungen → „Blick (PC)“ Adresse und Code aus Blick eintragen. Glow Up schickt dann im WLAN bei jeder Änderung seinen Export an `POST http://<PC>:4780/glowup/sync` (Kopf `X-Blick-Code`, Body = `glowup.v1` ohne Chat und Keys, dazu `done: [ids]`). Blick antwortet mit `{ ok, links: [{ id, url }] }`; erlaubt sind nur `glowup://log/...`-Links, zum Beispiel Wasser oder Gewicht vom PC aus.
+
 **Datenaustausch:** Einstellungen → Daten → Exportieren kopiert alles als JSON in die Zwischenablage, Importieren liest es wieder ein. Format:
 
 ```json

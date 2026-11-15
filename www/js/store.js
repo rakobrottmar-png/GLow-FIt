@@ -1,5 +1,6 @@
 // Alle Daten liegen nur auf dem Geraet (localStorage). Nichts wird hochgeladen,
-// ausser den Anfragen an OpenRouter, wenn die KI benutzt wird.
+// ausser den Anfragen an OpenRouter, wenn die KI benutzt wird, und dem Abgleich
+// mit dem eigenen Blick-Browser im WLAN, wenn er eingerichtet ist.
 const Store = (() => {
   const KEY = 'glowup.v1';
   const fresh = () => ({
@@ -8,6 +9,7 @@ const Store = (() => {
     ai: { provider: 'openrouter', keys: { openrouter: '' }, model: 'google/gemini-3.5-flash-lite' },  // KI ueber OpenRouter
     spotify: { clientId: '' },                     // + access, refresh, expires nach dem Login
     calendar: { id: '', title: '', time: '17:00', eventIds: [] },
+    blick: { host: '', code: '', last: 0, done: [] },   // Verbindung zum Blick-Browser auf dem PC
     plans: JSON.parse(JSON.stringify(DEFAULT_PLANS)),
     schedule: Object.assign({}, DEFAULT_SCHEDULE),
     customEx: {},        // id -> { name, muskeln, tipp, anim }
@@ -24,7 +26,7 @@ const Store = (() => {
   let d;
   try { d = Object.assign(fresh(), JSON.parse(localStorage.getItem(KEY) || '{}')); }
   catch (e) { d = fresh(); }
-  for (const k of ['profile', 'goals', 'ai', 'spotify', 'calendar']) d[k] = Object.assign(fresh()[k], d[k]);
+  for (const k of ['profile', 'goals', 'ai', 'spotify', 'calendar', 'blick']) d[k] = Object.assign(fresh()[k], d[k]);
   // Neue Standardplaene aus Updates ergaenzen (eigene Aenderungen bleiben)
   for (const p of DEFAULT_PLANS) if (!d.plans.some(x => x.id === p.id)) d.plans.push(JSON.parse(JSON.stringify(p)));
   // KI nur noch ueber OpenRouter: vorhandenen OpenRouter-Key und Modell behalten
@@ -37,6 +39,7 @@ const Store = (() => {
   const save = () => {
     try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { /* Speicher voll oder gesperrt */ }
     if (typeof Widget !== 'undefined') Widget.update();
+    if (typeof Blick !== 'undefined') Blick.soon();
   };
   const day = (dt = new Date()) => {
     const z = n => String(n).padStart(2, '0');
@@ -91,14 +94,14 @@ const Store = (() => {
     exportJson() {
       const c = JSON.parse(JSON.stringify(d));
       c.ai = { provider: c.ai.provider, model: c.ai.model };
-      c.spotify = {}; c.chat = (c.chat || []).map(m => { delete m.image; return m; });
+      c.spotify = {}; delete c.blick; c.chat = (c.chat || []).map(m => { delete m.image; return m; });
       return JSON.stringify({ format: 'glowup.v1', exportedAt: new Date().toISOString(), data: c }, null, 2);
     },
     importJson(text) {
       let j; try { j = JSON.parse(text); } catch (e) { throw new Error('Das ist kein gültiges JSON.'); }
       const src = j && j.format === 'glowup.v1' ? j.data : null;
       if (!src || !Array.isArray(src.plans)) throw new Error('Das ist kein Glow-Up-Export (format glowup.v1).');
-      const keep = { ai: d.ai, spotify: d.spotify, calendar: d.calendar };
+      const keep = { ai: d.ai, spotify: d.spotify, calendar: d.calendar, blick: d.blick };
       d = Object.assign(fresh(), src, keep);
       for (const k of ['profile', 'goals']) d[k] = Object.assign(fresh()[k], src[k]);
       save();

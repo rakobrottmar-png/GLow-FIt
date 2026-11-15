@@ -563,6 +563,13 @@
       <h2>Widgets</h2>
       <div class="muted small">Halte auf dem Homescreen eine freie Stelle gedrückt → + → „Glow Up“. Es gibt Ringe, Heute, Schritte und Woche, auch für den Sperrbildschirm.</div>
 
+      <h2>Blick (PC)</h2>
+      <div class="muted small">Schickt deine Fitness-Daten im WLAN an den Blick-Browser auf deinem PC. Adresse und Code stehen in Blick unter „Glow Up verbinden“.</div>
+      <div class="fields"><div class="field"><label for="s-bhost">Adresse</label><input id="s-bhost" value="${esc(s.blick.host)}" placeholder="192.168.178.20:4780" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+        <div class="field"><label for="s-bcode">Code</label><input id="s-bcode" value="${esc(s.blick.code)}" placeholder="8 Zeichen" autocomplete="off" autocapitalize="characters" spellcheck="false"></div></div>
+      <div class="btns" style="margin-top:12px"><button class="btn sm soft" data-a="blicksync">Jetzt verbinden</button>${Blick.on() ? '<button class="btn sm ghost" data-a="blickoff">Trennen</button>' : ''}</div>
+      <div class="muted small" style="margin-top:6px">${esc(Blick.status())}</div>
+
       <h2>KI (OpenRouter)</h2>
       <div class="field"><label for="s-key">OpenRouter-API-Key</label><input id="s-key" type="password" value="${esc(s.ai.keys.openrouter || '')}" placeholder="sk-or-…" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
       <div class="field" style="margin-top:10px"><label for="s-model">Modell</label><select id="s-model">${AI.MODELS.map(m => `<option value="${esc(m.id)}"${m.id === AI.model() ? ' selected' : ''}>${esc(m.label)}</option>`).join('')}${AI.MODELS.some(m => m.id === AI.model()) ? '' : `<option value="${esc(AI.model())}" selected>${esc(AI.model())}</option>`}<option value="__own">Eigenes Modell …</option></select></div>
@@ -584,6 +591,13 @@
     const m = val('s-model'), own = ($('#s-own') ? val('s-own') : '').trim();
     if (m === '__own') { if (own) d().ai.model = own; }
     else if (m) d().ai.model = m;
+  }
+
+  // Adresse und Code fuer den Blick-Browser uebernehmen
+  function keepBlick() {
+    if (!$('#s-bhost')) return;
+    d().blick.host = val('s-bhost').slice(0, 80);
+    d().blick.code = val('s-bcode').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
   }
 
   // ---------- Geruest ----------
@@ -680,7 +694,7 @@
       g.kcal = int('s-kcal', 800, 6000, g.kcal); g.protein = int('s-protein', 20, 400, g.protein); g.steps = int('s-steps', 1000, 50000, g.steps);
       g.water = int('s-water', 500, 6000, g.water); g.trainMin = int('s-min', 5, 180, g.trainMin); g.perWeek = int('s-week', 1, 7, g.perWeek);
       for (let i = 0; i < 7; i++) { const v = val('s-d' + i); if (v) s.schedule[i] = v; else delete s.schedule[i]; }
-      keepAi();
+      keepAi(); keepBlick();
       s.spotify.clientId = val('s-spid');
       if (/^\d\d:\d\d$/.test(val('s-caltime'))) s.calendar.time = val('s-caltime');
       Store.save(); Calendar.syncSoon(); closeSheet(); render(); toast('Gespeichert');
@@ -709,6 +723,13 @@
       try { const n = await Calendar.sync(); toast(n + ' Trainingstage eingetragen'); } catch (e) { toast(e.message); }
       settingsSheet();
     },
+    // Blick-Browser auf dem PC
+    async blicksync() {
+      keepBlick(); Store.save();
+      try { await Blick.sync(true); toast('Mit Blick verbunden'); } catch (e) { toast(e.message); }
+      settingsSheet();
+    },
+    blickoff() { Object.assign(d().blick, { host: '', code: '', last: 0 }); Store.save(); settingsSheet(); toast('Verbindung getrennt'); },
     async calsync() { try { const n = await Calendar.sync(); toast(n + ' Trainingstage eingetragen'); settingsSheet(); } catch (e) { toast(e.message); } },
     async calremove() { await Calendar.removeAll(); d().calendar.id = ''; d().calendar.title = ''; Store.save(); settingsSheet(); toast('Termine entfernt'); },
     async exportdata() {
@@ -798,7 +819,7 @@
 
   // Hintergrund: Timer-Alarm als Mitteilung planen. Vordergrund: wieder abbrechen, Daten auffrischen.
   Native.listen('App', 'appStateChange', ({ isActive }) => {
-    if (isActive) { cancelAlarm(); Widget.update(); if (P) Spotify.refresh(); }
+    if (isActive) { cancelAlarm(); Widget.update(); if (P) Spotify.refresh(); Blick.sync(); }
     else scheduleAlarm();
   });
 
@@ -809,4 +830,5 @@
   syncSteps(false);
   Widget.update();
   if (Spotify.connected()) Spotify.refresh();
+  Blick.sync();
 })();

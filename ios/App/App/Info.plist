@@ -85,6 +85,13 @@
 	<string>Glow Up trägt dein Training in deinen Kalender ein.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Glow Up zählt damit deine Schritte.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Glow Up schickt deine Fitness-Daten im WLAN an den Blick-Browser auf deinem PC.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Glow Up fotografiert dein Essen, um die Kalorien zu schätzen.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
