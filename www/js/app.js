@@ -7,7 +7,9 @@
   const pct = (v, goal) => goal > 0 ? Math.max(0, Math.min(1, v / goal)) : 0;
   const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
   const SLOTS = ['Frühstück', 'Mittag', 'Abend', 'Snack'];
-  const ui = { tab: 'start', trainSeg: 'kraft', busy: false, chatBusy: false };
+  // Website "nur Training" (training.html setzt window.GLOW_ONLY)
+  const ONLY = window.GLOW_ONLY || '';
+  const ui = { tab: ONLY || 'start', trainSeg: 'kraft', busy: false, chatBusy: false };
   const d = () => Store.d;
 
   let toastTimer;
@@ -123,7 +125,7 @@
           <div class="small" style="margin-top:4px"><span class="pill">${p.items.length} Übungen</span> <span class="pill gray">≈ ${Store.planMinutes(p)} Min.</span></div></div>
           <span class="chev">${Ic('chev')}</span>
         </button>`).join('')}</div>
-        <button class="btn soft" style="margin-top:14px" data-a="askcoach" data-q="${seg === 'kraft' ? 'Bau mir einen neuen Kraftplan für zu Hause.' : 'Bau mir eine neue Dehnroutine.'}">${Ic('spark')} Neuen Plan vom Coach bauen lassen</button>`;
+        ${ONLY ? '' : `<button class="btn soft" style="margin-top:14px" data-a="askcoach" data-q="${seg === 'kraft' ? 'Bau mir einen neuen Kraftplan für zu Hause.' : 'Bau mir eine neue Dehnroutine.'}">${Ic('spark')} Neuen Plan vom Coach bauen lassen</button>`}`;
     }
     return `
     <div class="head"><div><div class="eyebrow">Zu Hause · ohne Geräte</div><h1>Training</h1></div></div>
@@ -603,6 +605,7 @@
   // ---------- Geruest ----------
   const views = { start: vStart, training: vTraining, essen: vEssen, schritte: vSchritte, coach: vCoach };
   function render() {
+    if (ONLY) ui.tab = ONLY;
     const keep = ui.lastTab === ui.tab ? view.scrollTop : 0;
     view.innerHTML = views[ui.tab]();
     Figure.mount(view);

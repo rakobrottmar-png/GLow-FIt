@@ -253,3 +253,7 @@ button.card { display: block; width: 100%; text-align: left; color: inherit; }
 #toast { position: fixed; left: 50%; bottom: calc(var(--sab) + 96px); transform: translateX(-50%); z-index: 40; background: var(--ice); color: #00131f; font-weight: 750; font-size: 14.5px; padding: 10px 16px; border-radius: 99px; max-width: 88%; text-align: center; }
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* Website nur Training: keine Tab-Leiste */
+body.only #tabs { display: none; }
+body.only #view { padding-bottom: calc(var(--sab) + 28px); }

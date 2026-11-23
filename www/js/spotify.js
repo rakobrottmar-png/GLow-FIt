@@ -91,6 +91,7 @@ const Spotify = (() => {
   // Kleine Steuerleiste (HTML). Wird von der App in einen Platzhalter gesetzt.
   // Tippen auf das Spotify-Logo oder das Albumbild oeffnet die Spotify-App.
   function bar() {
+    if (window.GLOW_ONLY) return '';   // Website: Spotify-Anmeldung springt in die App zurueck, geht im Browser nicht
     const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const logo = `<button class="splogo" data-a="spopen" aria-label="Spotify öffnen">${Ic('spotify')}</button>`;
     if (!connected()) return `<div class="spbar">${logo}<button class="grow sptext" data-a="settings"><b>Spotify verbinden</b><small>Musik im Training steuern</small></button><span class="chev">${Ic('chev')}</span></div>`;

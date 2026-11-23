@@ -24,6 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - name: Seite nur Training erzeugen
+        run: |
+          sed -e 's|<title>Glow Up</title>|<title>Glow Up Training</title>|'               -e 's|<body>|<body class="only"><script>window.GLOW_ONLY="training"</script>|'               www/index.html > www/training.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: www
